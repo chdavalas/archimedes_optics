@@ -53,7 +53,7 @@ def init_dataloaders():
         for j in alphanumeric[:25]
     ]
 
-    global_batch_size = 16
+    global_batch_size = 32
 
     # Split dataset
     train_paths, test_paths = train_test_split(
@@ -75,7 +75,7 @@ def load_arniqa_model():
     model = torch.hub.load(repo_or_dir="miccunifi/ARNIQA", source="github", model="ARNIQA",
                            regressor_dataset="kadid10k")  # You can choose any of the available datasets
 
-def load_odld(train_dts, num_epochs=15, b_size=16):
+def load_odld(train_dts, num_epochs=15, b_size=32):
     if not os.path.exists("odld.pth"):
         model = resnet50()
         base_class = torch.tensor(1.)
@@ -97,18 +97,19 @@ def load_odld(train_dts, num_epochs=15, b_size=16):
 
         torch.save(model.state_dict(), "odld.pth")
 
-        return model.eval(), ddetect
     else:
         logger.info("load from dir")
         base_class = torch.tensor(1. , dtype=torch.float32)
         model = resnet50()
         model.load_state_dict(torch.load("odld.pth"))
 
-        ddetect = drift_detector()
-        for _ in tqdm(range(len(train_dts)*100)):
-            ddetect.fit(b_size)
+        
+    ddetect = drift_detector()
+    
+    for _, lbl in tqdm(train_dts):
+        ddetect.fit(lbl.shape[0])
 
-        return model.eval(), ddetect
+    return model.eval(), ddetect
 
 
 
@@ -124,6 +125,7 @@ if __name__ == "__main__":
     train, test = init_dataloaders()
 
     global_batch_size = 64
+
     model_arniqa = load_arniqa_model()
     model_odld, ddetect = load_odld(train_dts=train, b_size=global_batch_size)
 

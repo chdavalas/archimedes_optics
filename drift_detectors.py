@@ -7,8 +7,8 @@ class drift_detector(nn.Module):
         super(drift_detector, self).__init__()
         self.detector = KSDriftDetector(return_p_value=True)
 
-    def fit(self, b_size=16):
-        base_class = torch.tensor(1., dtype=torch.long)
+    def fit(self, b_size=32):
+        base_class = torch.tensor(1, dtype=torch.float32)
         self.detector.fit(base_class.repeat(b_size,1))
 
     def forward(self, y_pred, ):

@@ -33,6 +33,7 @@ class kadid10k(Dataset):
         
         big_image = preproc(big_image)
         small_image = ds_preproc(big_image)
-        label = torch.tensor(label, dtype=torch.float32)
+        
+        label = torch.tensor(label, dtype=torch.long)
 
         return big_image, small_image, label
