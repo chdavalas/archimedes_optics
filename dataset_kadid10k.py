@@ -1,0 +1,38 @@
+
+import torch
+from torch.utils.data import Dataset
+import numpy as np
+from PIL import Image
+import matplotlib.pyplot as plt
+from os.path import exists, join
+from os import mkdir
+import torchvision.transforms.v2 as T
+
+class kadid10k(Dataset):
+    def __init__(self, image_paths: str):
+        self.image_paths = image_paths
+
+
+    def __len__(self):
+        return len(self.image_paths)
+
+    def __getitem__(self, idx):
+        im_path = self.image_paths[idx]
+        label = int(im_path.split('.')[0][-1])
+        big_image = Image.open(im_path)
+
+        preproc = T.Compose([
+            T.CenterCrop(size=min(big_image.size)),
+            T.ToImage(), T.ToDtype(torch.float32, scale=True),
+            T.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+        ])
+
+        ds_preproc = T.Compose([
+            T.Resize((128,128)),
+        ])
+        
+        big_image = preproc(big_image)
+        small_image = ds_preproc(big_image)
+        label = torch.tensor(label, dtype=torch.float32)
+
+        return big_image, small_image, label
