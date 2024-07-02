@@ -28,7 +28,7 @@ class kadid10k(Dataset):
         ])
 
         ds_preproc = T.Compose([
-            T.Resize((128,128)),
+            T.Resize((192,192)),
         ])
         
         big_image = preproc(big_image)

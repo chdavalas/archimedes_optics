@@ -75,20 +75,21 @@ def load_arniqa_model():
     model = torch.hub.load(repo_or_dir="miccunifi/ARNIQA", source="github", model="ARNIQA",
                            regressor_dataset="kadid10k")  # You can choose any of the available datasets
 
+    return model
+
 def load_odld(train_dts, num_epochs=15, b_size=32):
     if not os.path.exists("odld.pth"):
-        model = resnet50()
-        base_class = torch.tensor(1.)
+        model = resnet50().to(device)
         ddetect = drift_detector()
         criterion = nn.CrossEntropyLoss()
         optimizer = optim.Adam(model.parameters(), lr=0.001)
         for epoch in tqdm(range(num_epochs), desc="Epoch", position=0):
             model.train()
             running_loss = 0.0
-            for _, images, labels in tqdm(train_dts, desc="batch", position=1, leave=False):
+            for bimages, images, labels in tqdm(train_dts, desc="batch", position=1, leave=False):
                 optimizer.zero_grad()
-                outputs = model(images)
-                loss = criterion(outputs, labels.long())
+                outputs = model(images.to(device))
+                loss = criterion(outputs.to(device), labels.long().to(device))
                 loss.backward()
                 optimizer.step()
                 running_loss += loss.item()
@@ -106,7 +107,7 @@ def load_odld(train_dts, num_epochs=15, b_size=32):
         
     ddetect = drift_detector()
     
-    for _, lbl in tqdm(train_dts):
+    for _, _, lbl in tqdm(train_dts):
         ddetect.fit(lbl.shape[0])
 
     return model.eval(), ddetect
@@ -129,11 +130,13 @@ if __name__ == "__main__":
     model_arniqa = load_arniqa_model()
     model_odld, ddetect = load_odld(train_dts=train, b_size=global_batch_size)
 
+    model_odld.to(device)
+
     all_labels = []
     all_preds = []
     all_drift_p_values = []
     all_iqscore_values = []
-    class_array = np.array(["1.0", "2.0", "3.0", "4.0", "5.0"])
+    class_array = np.array(["1.0", "5.0"])
 
     frames_images = []
     frames_results = []
@@ -145,22 +148,22 @@ if __name__ == "__main__":
         im_passed = []; idx=0
         for bimages, images, labels in tqdm(test, desc="Test", position=0):
             
-            outputs = model_odld(images)
+            outputs = model_odld(images.to(device))
             arniqa_outputs = compute_quality_score(model_arniqa, bimages, images)
 
-            ddetect.fit(bimages.shape[0])
+            # ddetect.fit(bimages.shape[0])
             _, preds = torch.max(outputs, 1)
 
-            all_labels.extend(labels.numpy())
-            all_preds.extend(preds.numpy())
+            all_labels.extend(labels.cpu().numpy())
+            all_preds.extend(preds.cpu().numpy())
 
-            preds = preds.unsqueeze(1).to(dtype=torch.float32)
-            pv = ddetect.forward(preds)
+            preds = preds.unsqueeze(1).to(dtype=torch.long)
+            pv = ddetect.forward(preds.cpu())
             all_drift_p_values.extend([pv.item()])
 
-            all_iqscore_values.extend([arniqa_outputs.mean().item()])
+            print(pv.item(), arniqa_outputs.mean().item())
 
-            print(arniqa_outputs.mean(), pv, preds, labels)
+            all_iqscore_values.extend([arniqa_outputs.mean().item()])
 
             idx+=images.shape[0]; im_passed += [idx]
             for lb in labels:

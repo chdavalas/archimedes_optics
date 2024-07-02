@@ -1,6 +1,7 @@
 # exclude project-based data
 kadid*
 *.zip
+odld.pth
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
