@@ -202,17 +202,18 @@ logger.info(classification_report(
     )
 
 
-ypoints = np.array([3, 8, 1, 10, 5, 7])
 plt.subplot(2, 1, 1)
 plt.plot(all_drift_p_values, marker = 'o')
 plt.axvline(len(test)/2, linestyle="--", color="grey")
 plt.axhline(0.05, linestyle="--", color="red")
-plt.title("drift p-value")
+plt.ylabel("drift p-value")
+plt.grid()
 
 plt.subplot(2, 1, 2)
 plt.axvline(len(test)/2, linestyle="--", color="grey")
 plt.plot(all_iqscore_values, color="purple", marker = 'o')
-plt.title("mean image quality score")
-
+plt.ylabel("mean image quality score")
+plt.xlabel("# of batches")
 plt.grid()
-plt.show()
+
+plt.savefig("current_results.jpg")
