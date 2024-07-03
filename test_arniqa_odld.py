@@ -19,6 +19,9 @@ import numpy as np
 from sklearn.metrics import classification_report
 from models_dist import DistortionClassifier
 
+import matplotlib.pyplot as plt
+
+
 logger = logging.getLogger(__name__)
 
 logging.basicConfig(
@@ -55,7 +58,8 @@ def init_dataloaders():
         for j in alphanumeric[:25]
     ]
 
-    image_paths += ['kadid10k/images/I'+i+'.png' for i in alphanumeric]
+
+    pristine_images = ['kadid10k/images/I'+i+'.png' for i in alphanumeric]
 
     global_batch_size = 32
 
@@ -63,7 +67,11 @@ def init_dataloaders():
     train_paths, test_paths = train_test_split(
         image_paths, test_size=0.4, random_state=42, shuffle=True)
 
-    test_paths = sorted(test_paths, key=lambda x: x[::-1])
+    prist_train_paths, prist_test_paths = train_test_split(
+        pristine_images, test_size=0.4, random_state=42, shuffle=True)
+
+    train_paths += prist_train_paths
+    test_paths = prist_test_paths + sorted(test_paths, key=lambda x: x[::-1])
 
     ddetect_paths = [ i for i in train_paths if int(i.split('.')[0][-1]) in [1,2,3]]
 
@@ -117,10 +125,10 @@ def load_odld(train_dts, ddetector_dts, num_epochs=100, b_size=32):
         model = resnet50(weights='DEFAULT')
         model.load_state_dict(torch.load("odld.pth"))
 
-    feat_ext = torch.nn.Sequential(*(list(model.children())[:2])).to(device).eval()
+    feat_ext = torch.nn.Sequential(*(list(model.children())[:3])).eval().to(device)
     ddetect = drift_detector()
 
-    for _, im, _ in tqdm(ddetector_dts):  
+    for _, im, _ in tqdm(ddetector_dts, desc="Drift fit"):  
         inp = feat_ext(im.to(device))
         ddetect.fit(inp.reshape(im.shape[0], -1))
 
@@ -141,18 +149,19 @@ if __name__ == "__main__":
 
     global_batch_size = 32
 
-    model_arniqa = load_arniqa_model()
+    model_arniqa = load_arniqa_model().to(device)
     model_odld, ddetect, feat_ext = load_odld(
         train_dts=train, ddetector_dts=ddet, b_size=global_batch_size, 
         )
 
     model_odld.to(device)
+    feat_ext.to(device)
 
     all_labels = []
     all_preds = []
     all_drift_p_values = []
     all_iqscore_values = []
-    class_array = np.array(["{}.0".format(i) for i in range(1,4)])
+    class_array = np.array(["{}.0".format(i) for i in range(1,3)])
 
     frames_images = []
     frames_results = []
@@ -165,7 +174,7 @@ if __name__ == "__main__":
         for bimages, images, labels in tqdm(test, desc="Test", position=0):
             #ddetect.fit(labels.shape[0])
             outputs = model_odld(images.to(device))
-            arniqa_outputs = compute_quality_score(model_arniqa, bimages, images)
+            arniqa_outputs = compute_quality_score(model_arniqa, bimages.to(device), images.to(device))
 
             # ddetect.fit(bimages.shape[0])
             _, preds = torch.max(outputs, 1)
@@ -175,11 +184,9 @@ if __name__ == "__main__":
 
             # preds = preds.unsqueeze(1).to(dtype=torch.long)
             dd_in = feat_ext(images.to(device)).reshape(images.shape[0], -1)
-            print(dd_in)
+            
             pv = ddetect.forward(dd_in)
             all_drift_p_values.extend([pv.item()])
-
-            print(pv.item(), arniqa_outputs.mean().item(), preds, labels)
 
             all_iqscore_values.extend([arniqa_outputs.mean().item()])
 
@@ -193,3 +200,19 @@ logger.info(classification_report(
     all_preds, 
     target_names=class_array)
     )
+
+
+ypoints = np.array([3, 8, 1, 10, 5, 7])
+plt.subplot(2, 1, 1)
+plt.plot(all_drift_p_values, marker = 'o')
+plt.axvline(len(test)/2, linestyle="--", color="grey")
+plt.axhline(0.05, linestyle="--", color="red")
+plt.title("drift p-value")
+
+plt.subplot(2, 1, 2)
+plt.axvline(len(test)/2, linestyle="--", color="grey")
+plt.plot(all_iqscore_values, color="purple", marker = 'o')
+plt.title("mean image quality score")
+
+plt.grid()
+plt.show()
