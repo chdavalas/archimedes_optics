@@ -37,8 +37,10 @@ def init_dataloaders():
     file_name = "kadid10k.zip"
 
     if not os.path.exists("kadid10k"):
+        logger.info("Downloading data ...")
         urllib.request.urlretrieve(url, file_name)
         with zipfile.ZipFile(file_name, 'r') as zip_ref:
+            logger.info("Extracting data ...")
             zip_ref.extractall('.')
     
 
@@ -53,21 +55,28 @@ def init_dataloaders():
         for j in alphanumeric[:25]
     ]
 
+    image_paths += ['kadid10k/images/I'+i+'.png' for i in alphanumeric]
+
     global_batch_size = 32
 
     # Split dataset
     train_paths, test_paths = train_test_split(
-        image_paths, test_size=0.25, random_state=42, shuffle=False)
+        image_paths, test_size=0.4, random_state=42, shuffle=True)
+
+    test_paths = sorted(test_paths, key=lambda x: x[::-1])
+
+    ddetect_paths = [ i for i in train_paths if int(i.split('.')[0][-1]) in [1,2,3]]
 
     # Create datasets and loaders
     train_dataset = kadid10k(train_paths)
     test_dataset = kadid10k(test_paths)
+    drift_dataset = kadid10k(ddetect_paths)
 
     train_loader = DataLoader(train_dataset, batch_size=global_batch_size, shuffle=True)
     test_loader = DataLoader(test_dataset, batch_size=global_batch_size, shuffle=False, drop_last=True)
+    ddetector_loader = DataLoader(drift_dataset, batch_size=global_batch_size, shuffle=False, drop_last=True)
 
-
-    return train_loader, test_loader
+    return train_loader, test_loader, ddetector_loader
 
 
 def load_arniqa_model():
@@ -77,12 +86,17 @@ def load_arniqa_model():
 
     return model
 
-def load_odld(train_dts, num_epochs=15, b_size=32):
+def load_odld(train_dts, ddetector_dts, num_epochs=100, b_size=32):
+
+    base_class = torch.tensor(1. , dtype=torch.float32)
+
+
+
     if not os.path.exists("odld.pth"):
-        model = resnet50().to(device)
+        model = resnet50(weights='DEFAULT').to(device)
         ddetect = drift_detector()
         criterion = nn.CrossEntropyLoss()
-        optimizer = optim.Adam(model.parameters(), lr=0.001)
+        optimizer = optim.Adam(model.parameters(), lr=0.005)
         for epoch in tqdm(range(num_epochs), desc="Epoch", position=0):
             model.train()
             running_loss = 0.0
@@ -100,17 +114,17 @@ def load_odld(train_dts, num_epochs=15, b_size=32):
 
     else:
         logger.info("load from dir")
-        base_class = torch.tensor(1. , dtype=torch.float32)
-        model = resnet50()
+        model = resnet50(weights='DEFAULT')
         model.load_state_dict(torch.load("odld.pth"))
 
-        
+    feat_ext = torch.nn.Sequential(*(list(model.children())[:2])).to(device).eval()
     ddetect = drift_detector()
-    
-    for _, _, lbl in tqdm(train_dts):
-        ddetect.fit(lbl.shape[0])
 
-    return model.eval(), ddetect
+    for _, im, _ in tqdm(ddetector_dts):  
+        inp = feat_ext(im.to(device))
+        ddetect.fit(inp.reshape(im.shape[0], -1))
+
+    return model.eval(), ddetect, feat_ext
 
 
 
@@ -123,12 +137,14 @@ def compute_quality_score(model, img, img_ds):
     return score
 
 if __name__ == "__main__":
-    train, test = init_dataloaders()
+    train, test, ddet = init_dataloaders()
 
-    global_batch_size = 64
+    global_batch_size = 32
 
     model_arniqa = load_arniqa_model()
-    model_odld, ddetect = load_odld(train_dts=train, b_size=global_batch_size)
+    model_odld, ddetect, feat_ext = load_odld(
+        train_dts=train, ddetector_dts=ddet, b_size=global_batch_size, 
+        )
 
     model_odld.to(device)
 
@@ -136,7 +152,7 @@ if __name__ == "__main__":
     all_preds = []
     all_drift_p_values = []
     all_iqscore_values = []
-    class_array = np.array(["1.0", "5.0"])
+    class_array = np.array(["{}.0".format(i) for i in range(1,4)])
 
     frames_images = []
     frames_results = []
@@ -147,7 +163,7 @@ if __name__ == "__main__":
     with torch.no_grad():
         im_passed = []; idx=0
         for bimages, images, labels in tqdm(test, desc="Test", position=0):
-            
+            #ddetect.fit(labels.shape[0])
             outputs = model_odld(images.to(device))
             arniqa_outputs = compute_quality_score(model_arniqa, bimages, images)
 
@@ -157,11 +173,13 @@ if __name__ == "__main__":
             all_labels.extend(labels.cpu().numpy())
             all_preds.extend(preds.cpu().numpy())
 
-            preds = preds.unsqueeze(1).to(dtype=torch.long)
-            pv = ddetect.forward(preds.cpu())
+            # preds = preds.unsqueeze(1).to(dtype=torch.long)
+            dd_in = feat_ext(images.to(device)).reshape(images.shape[0], -1)
+            print(dd_in)
+            pv = ddetect.forward(dd_in)
             all_drift_p_values.extend([pv.item()])
 
-            print(pv.item(), arniqa_outputs.mean().item())
+            print(pv.item(), arniqa_outputs.mean().item(), preds, labels)
 
             all_iqscore_values.extend([arniqa_outputs.mean().item()])
 

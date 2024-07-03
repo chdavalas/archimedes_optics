@@ -18,7 +18,23 @@ class kadid10k(Dataset):
 
     def __getitem__(self, idx):
         im_path = self.image_paths[idx]
-        label = int(im_path.split('.')[0][-1])
+
+        if len(im_path.replace(".png", "").split("/")[-1])==3:
+            label = 1
+        else:
+            quality = int(im_path.split('.')[0][-1])
+            # distortion_type = im_path.replace(".png", "").split("_")[-2]
+            # if distortion_type[0]=="0":
+            #     distortion_type = int(distortion_type[1])
+            # else:
+            #     distortion_type = int(distortion_type)
+
+        
+            if quality in [1,2,3]:
+                label = 1
+            else:
+                label = 2
+
         big_image = Image.open(im_path)
 
         preproc = T.Compose([
@@ -28,7 +44,7 @@ class kadid10k(Dataset):
         ])
 
         ds_preproc = T.Compose([
-            T.Resize((192,192)),
+            T.Resize((128,128)),
         ])
         
         big_image = preproc(big_image)
