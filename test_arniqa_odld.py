@@ -125,7 +125,7 @@ def load_odld(train_dts, ddetector_dts, num_epochs=100, b_size=32):
         model = resnet50(weights='DEFAULT')
         model.load_state_dict(torch.load("odld.pth"))
 
-    feat_ext = torch.nn.Sequential(*(list(model.children())[:3])).eval().to(device)
+    feat_ext = torch.nn.Sequential(*(list(model.children())[:-2])).eval().to(device)
     ddetect = drift_detector()
 
     for _, im, _ in tqdm(ddetector_dts, desc="Drift fit"):  
