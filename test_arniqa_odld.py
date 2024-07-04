@@ -82,7 +82,7 @@ def init_dataloaders():
 
     train_loader = DataLoader(train_dataset, batch_size=global_batch_size, shuffle=True)
     test_loader = DataLoader(test_dataset, batch_size=global_batch_size, shuffle=False, drop_last=True)
-    ddetector_loader = DataLoader(drift_dataset, batch_size=global_batch_size, shuffle=False, drop_last=True)
+    ddetector_loader = DataLoader(drift_dataset, batch_size=global_batch_size, shuffle=True, drop_last=True)
 
     return train_loader, test_loader, ddetector_loader
 
@@ -170,7 +170,6 @@ if __name__ == "__main__":
 
 
     with torch.no_grad():
-        im_passed = []; idx=0
         for bimages, images, labels in tqdm(test, desc="Test", position=0):
             #ddetect.fit(labels.shape[0])
             outputs = model_odld(images.to(device))
@@ -185,14 +184,16 @@ if __name__ == "__main__":
             # preds = preds.unsqueeze(1).to(dtype=torch.long)
             dd_in = feat_ext(images.to(device)).reshape(images.shape[0], -1)
             
-            pv = ddetect.forward(dd_in)
-            all_drift_p_values.extend([pv.item()])
+            pv = ddetect.forward(dd_in).item()
 
-            all_iqscore_values.extend([arniqa_outputs.mean().item()])
+            meaniq = arniqa_outputs.mean().item()
 
-            idx+=images.shape[0]; im_passed += [idx]
-            for lb in labels:
-                class_answers += [lb.numpy()]
+            all_drift_p_values.extend([pv])
+            all_iqscore_values.extend([meaniq])
+
+
+            logger.info(("drift p-val:",pv , "mean_iq:", meaniq))
+
 
 # logger.info classification report
 logger.info(classification_report(
