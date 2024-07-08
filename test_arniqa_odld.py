@@ -108,7 +108,7 @@ def load_arniqa_model():
 
     return model
 
-def load_odld(train_dts, ddetector_dts, num_epochs=10, detector="mmd", dataset="kadid10k", feat_ext_slice=-2):
+def load_odld(train_dts, ddetector_dts, num_epochs=100, detector="mmd", dataset="kadid10k", feat_ext_slice=-2):
 
     if not os.path.exists("odld_"+dataset+".pth"):
         model = resnet50(weights='DEFAULT').to(device)
@@ -164,7 +164,7 @@ if __name__ == "__main__":
 
 
     model_arniqa = load_arniqa_model().to(device)
-    model_odld, ddetect, feat_ext = load_odld(detector="ks",
+    model_odld, ddetect, feat_ext = load_odld(detector="mmd",
         train_dts=train, ddetector_dts=ddet, dataset=dataset, feat_ext_slice=-2
         )
 
