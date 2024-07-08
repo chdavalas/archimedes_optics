@@ -1,7 +1,10 @@
 # exclude project-based data
 kadid*
 *.zip
-odld.pth
+*.pth
+*csv
+display*
+drone_factory_frames
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

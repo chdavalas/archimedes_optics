@@ -5,7 +5,8 @@ import torch
 import zipfile
 from pathlib import Path
 from sklearn.model_selection import train_test_split
-from dataset_kadid10k import kadid10k
+from dataloaders import kadid10k, DroneFootage
+
 from torch.utils.data import Dataset
 from torch.utils.data import DataLoader
 import torchvision.transforms.v2 as T
@@ -18,7 +19,7 @@ from torchvision.models import resnet50
 import numpy as np
 from sklearn.metrics import classification_report
 from models_dist import DistortionClassifier
-
+import csv
 import matplotlib.pyplot as plt
 
 
@@ -34,55 +35,68 @@ torch.manual_seed(0)
 
 device = torch.device("cuda") if torch.cuda.is_available() else "cpu"
 
-def init_dataloaders():
-
-    url = "https://datasets.vqa.mmsp-kn.de/archives/kadid10k.zip"
-    file_name = "kadid10k.zip"
-
-    if not os.path.exists("kadid10k"):
-        logger.info("Downloading data ...")
-        urllib.request.urlretrieve(url, file_name)
-        with zipfile.ZipFile(file_name, 'r') as zip_ref:
-            logger.info("Extracting data ...")
-            zip_ref.extractall('.')
-    
-
-    alphanumeric  = ["0{}".format(i) for i in range(1,10)]
-    alphanumeric += ["{}".format(i) for i in range(10,82)]
-
-    # Example image paths and labels
-    image_paths = [
-        'kadid10k/images/I'+i+'_'+j+'_'+k+'.png'
-        for k in [alphanumeric[0]]+[alphanumeric[4]]
-        for i in alphanumeric
-        for j in alphanumeric[:25]
-    ]
-
-
-    pristine_images = ['kadid10k/images/I'+i+'.png' for i in alphanumeric]
-
-    global_batch_size = 32
-
-    # Split dataset
-    train_paths, test_paths = train_test_split(
-        image_paths, test_size=0.4, random_state=42, shuffle=True)
-
-    prist_train_paths, prist_test_paths = train_test_split(
-        pristine_images, test_size=0.4, random_state=42, shuffle=True)
-
-    train_paths += prist_train_paths
-    test_paths = prist_test_paths + sorted(test_paths, key=lambda x: x[::-1])
-
-    ddetect_paths = [ i for i in train_paths if int(i.split('.')[0][-1]) in [1,2,3]]
+def init_dataloaders(dataset="kadid10k", scenario="SnP", batch_size=32):
 
     # Create datasets and loaders
-    train_dataset = kadid10k(train_paths)
-    test_dataset = kadid10k(test_paths)
-    drift_dataset = kadid10k(ddetect_paths)
+    if dataset == "kadid10k":
+        url = "https://datasets.vqa.mmsp-kn.de/archives/kadid10k.zip"
+        file_name = "kadid10k.zip"
 
-    train_loader = DataLoader(train_dataset, batch_size=global_batch_size, shuffle=True)
-    test_loader = DataLoader(test_dataset, batch_size=global_batch_size, shuffle=False, drop_last=True)
-    ddetector_loader = DataLoader(drift_dataset, batch_size=global_batch_size, shuffle=True, drop_last=True)
+        if not os.path.exists("kadid10k"):
+            logger.info("Downloading data ...")
+            urllib.request.urlretrieve(url, file_name)
+            with zipfile.ZipFile(file_name, 'r') as zip_ref:
+                logger.info("Extracting data ...")
+                zip_ref.extractall('.')
+        
+
+        alphanumeric  = ["0{}".format(i) for i in range(1,10)]
+        alphanumeric += ["{}".format(i) for i in range(10,82)]
+
+        # Example image paths and labels
+        image_paths = [
+            'kadid10k/images/I'+i+'_'+j+'_'+k+'.png'
+            for k in [alphanumeric[0]]+[alphanumeric[4]]
+            for i in alphanumeric
+            for j in alphanumeric[:25]
+        ]
+
+
+        pristine_images = ['kadid10k/images/I'+i+'.png' for i in alphanumeric]
+
+        # Split dataset
+        train_paths, test_paths = train_test_split(
+            image_paths, test_size=0.4, random_state=42, shuffle=True)
+
+        prist_train_paths, prist_test_paths = train_test_split(
+            pristine_images, test_size=0.4, random_state=42, shuffle=True)
+
+        train_paths += prist_train_paths
+        test_paths = prist_test_paths + sorted(test_paths, key=lambda x: x[::-1])
+
+        ddetect_paths = [ i for i in train_paths if int(i.split('.')[0][-1]) in [1,2,3]]
+        
+        train_dataset = kadid10k(train_paths)
+        test_dataset = kadid10k(test_paths)
+        drift_dataset = kadid10k(ddetect_paths)
+
+    else:
+        # Example image paths and labels
+        image_paths = ['drone_factory_frames/frame_0_{}.jpg'.format(i) for i in range(1, 401)]
+
+        # Split dataset
+        train_paths, test_paths = train_test_split(
+            image_paths, test_size=0.5, random_state=42, shuffle=False)
+
+        train_dataset = DroneFootage(train_paths)
+        test_dataset = DroneFootage(test_paths, scenario=scenario, display_im=True)
+        drift_dataset = DroneFootage(train_paths, scenario="normal")
+
+
+
+    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
+    test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False, drop_last=True)
+    ddetector_loader = DataLoader(drift_dataset, batch_size=batch_size, shuffle=True, drop_last=True)
 
     return train_loader, test_loader, ddetector_loader
 
@@ -94,38 +108,33 @@ def load_arniqa_model():
 
     return model
 
-def load_odld(train_dts, ddetector_dts, num_epochs=100, b_size=32):
+def load_odld(train_dts, ddetector_dts, num_epochs=10, detector="mmd", dataset="kadid10k", feat_ext_slice=-2):
 
-    base_class = torch.tensor(1. , dtype=torch.float32)
-
-
-
-    if not os.path.exists("odld.pth"):
+    if not os.path.exists("odld_"+dataset+".pth"):
         model = resnet50(weights='DEFAULT').to(device)
-        ddetect = drift_detector()
+        ddetect = drift_detector(detector=detector)
         criterion = nn.CrossEntropyLoss()
-        optimizer = optim.Adam(model.parameters(), lr=0.005)
+        optimizer = optim.Adam(model.parameters(), lr=0.001)
         for epoch in tqdm(range(num_epochs), desc="Epoch", position=0):
             model.train()
             running_loss = 0.0
-            for bimages, images, labels in tqdm(train_dts, desc="batch", position=1, leave=False):
+            for _, images, labels in tqdm(train_dts, desc="batch", position=1, leave=False):
                 optimizer.zero_grad()
                 outputs = model(images.to(device))
                 loss = criterion(outputs.to(device), labels.long().to(device))
                 loss.backward()
                 optimizer.step()
                 running_loss += loss.item()
-                ddetect.fit(images.shape[0])
             logger.info(f"Loss: {running_loss/len(train_dts):.4f}")
 
-        torch.save(model.state_dict(), "odld.pth")
+        torch.save(model.state_dict(), "odld_"+dataset+".pth")
 
     else:
         logger.info("load from dir")
         model = resnet50(weights='DEFAULT')
-        model.load_state_dict(torch.load("odld.pth"))
+        model.load_state_dict(torch.load("odld_"+dataset+".pth"))
 
-    feat_ext = torch.nn.Sequential(*(list(model.children())[:-2])).eval().to(device)
+    feat_ext = torch.nn.Sequential(*(list(model.children())[:feat_ext_slice])).eval().to(device)
     ddetect = drift_detector()
 
     for _, im, _ in tqdm(ddetector_dts, desc="Drift fit"):  
@@ -145,13 +154,18 @@ def compute_quality_score(model, img, img_ds):
     return score
 
 if __name__ == "__main__":
-    train, test, ddet = init_dataloaders()
 
+    dataset="kadid10k"
+    scenario="blur"
     global_batch_size = 32
+    train, test, ddet = init_dataloaders(
+        dataset=dataset, batch_size=global_batch_size, scenario=scenario)
+
+
 
     model_arniqa = load_arniqa_model().to(device)
-    model_odld, ddetect, feat_ext = load_odld(
-        train_dts=train, ddetector_dts=ddet, b_size=global_batch_size, 
+    model_odld, ddetect, feat_ext = load_odld(detector="ks",
+        train_dts=train, ddetector_dts=ddet, dataset=dataset, feat_ext_slice=-2
         )
 
     model_odld.to(device)
@@ -161,19 +175,22 @@ if __name__ == "__main__":
     all_preds = []
     all_drift_p_values = []
     all_iqscore_values = []
-    class_array = np.array(["{}.0".format(i) for i in range(1,3)])
+
 
     frames_images = []
     frames_results = []
 
     class_answers = []
-
+    class_array = []
 
     with torch.no_grad():
+        im_passed = []; idx=0
         for bimages, images, labels in tqdm(test, desc="Test", position=0):
-            #ddetect.fit(labels.shape[0])
+
             outputs = model_odld(images.to(device))
-            arniqa_outputs = compute_quality_score(model_arniqa, bimages.to(device), images.to(device))
+            arniqa_outputs = compute_quality_score(
+                model_arniqa, bimages.to(device), images.to(device)
+                )
 
             # ddetect.fit(bimages.shape[0])
             _, preds = torch.max(outputs, 1)
@@ -191,11 +208,19 @@ if __name__ == "__main__":
             all_drift_p_values.extend([pv])
             all_iqscore_values.extend([meaniq])
 
+            idx+=images.shape[0]; im_passed += [idx]
+            for lb in labels:
+                class_answers += [lb.numpy()]
+            for pred in preds:
+                if int(pred.cpu().numpy()) not in class_array:
+                    class_array.append(int(pred.cpu().numpy())) 
 
             logger.info(("drift p-val:",pv , "mean_iq:", meaniq))
 
 
+
 # logger.info classification report
+class_array = np.array([str(i) for i in class_array])
 logger.info(classification_report(
     all_labels, 
     all_preds, 
@@ -218,3 +243,21 @@ plt.xlabel("# of batches")
 plt.grid()
 
 plt.savefig("current_results.jpg")
+
+with open('drifts.csv', 'w', newline='') as csvfile:
+    drift_values = csv.writer(csvfile, delimiter=' ',
+                            quotechar='|', quoting=csv.QUOTE_MINIMAL)
+    for res, step in zip(all_drift_p_values, im_passed):
+        drift_values.writerow([step, res])
+
+with open('iqs.csv', 'w', newline='') as csvfile:
+    iqa_values = csv.writer(csvfile, delimiter=' ',
+                            quotechar='|', quoting=csv.QUOTE_MINIMAL)
+    for res, step in zip(all_iqscore_values, im_passed):
+        iqa_values.writerow([step, res])
+
+with open('class_choice.csv', 'w', newline='') as csvfile:
+    class_ans = csv.writer(csvfile,
+                            quotechar='|', quoting=csv.QUOTE_MINIMAL)
+    for cl in class_answers:
+        class_ans.writerow([cl])
