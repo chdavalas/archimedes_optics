@@ -65,8 +65,8 @@ class kadid10k(Dataset):
 
         return big_image, small_image, label
     
-class DroneFootage(Dataset):
-    def __init__(self, image_paths, scenario=None, display_im=False):
+class VideoFootage(Dataset):
+    def __init__(self, image_paths: str, scenario: str = None, display_im: bool = False):
 
         self.image_paths = image_paths
         self.display_im = display_im

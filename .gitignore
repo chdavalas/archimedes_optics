@@ -5,6 +5,7 @@ kadid*
 *csv
 display*
 drone_factory_frames
+video_maker.py
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

@@ -5,23 +5,22 @@ import torch
 import zipfile
 from pathlib import Path
 from sklearn.model_selection import train_test_split
-from dataloaders import kadid10k, DroneFootage
+from dataloaders import kadid10k, VideoFootage
 
 from torch.utils.data import Dataset
 from torch.utils.data import DataLoader
 import torchvision.transforms.v2 as T
-from drift_detectors import drift_detector
+from drift_detector import drift_detector
 from tqdm import tqdm
 import torch.nn as nn
 import torch.optim as optim
 import logging
-from torchvision.models import resnet50
 import numpy as np
 from sklearn.metrics import classification_report
-from models_dist import DistortionClassifier
+from models_hub import ResNet, SimCLR
 import csv
 import matplotlib.pyplot as plt
-
+from dotmap import DotMap
 
 logger = logging.getLogger(__name__)
 
@@ -88,9 +87,9 @@ def init_dataloaders(dataset="kadid10k", scenario="SnP", batch_size=32):
         train_paths, test_paths = train_test_split(
             image_paths, test_size=0.5, random_state=42, shuffle=False)
 
-        train_dataset = DroneFootage(train_paths)
-        test_dataset = DroneFootage(test_paths, scenario=scenario, display_im=True)
-        drift_dataset = DroneFootage(train_paths, scenario="normal")
+        train_dataset = VideoFootage(train_paths)
+        test_dataset = VideoFootage(test_paths, scenario=scenario, display_im=True)
+        drift_dataset = VideoFootage(train_paths, scenario="normal")
 
 
 
@@ -101,40 +100,64 @@ def init_dataloaders(dataset="kadid10k", scenario="SnP", batch_size=32):
     return train_loader, test_loader, ddetector_loader
 
 
-def load_arniqa_model():
+def fast_load_arniqa_model(
+                           replacement_enc: nn.Module = None, 
+                           regr_dt: str = "kadid10k", 
+                        ):
     """Load the pre-trained model."""
+    
+    # available_datasets = 
+    # [
+    #   "live", "csiq", "tid2013", "kadid10k", "flive", 
+    #   "spaq", "clive", "koniq10k"
+    # ]
+
     model = torch.hub.load(repo_or_dir="miccunifi/ARNIQA", source="github", model="ARNIQA",
-                           regressor_dataset="kadid10k")  # You can choose any of the available datasets
+                        regressor_dataset=regr_dt)    # You can choose any of the available datasets
+    if replacement_enc:
+        model.encoder = replacement_enc
 
-    return model
 
-def load_odld(train_dts, ddetector_dts, num_epochs=100, detector="mmd", dataset="kadid10k", feat_ext_slice=-2):
+    return model.eval().to(device)
 
-    if not os.path.exists("odld_"+dataset+".pth"):
-        model = resnet50(weights='DEFAULT').to(device)
+def load_drd(model_type: str, 
+             train_dts: DataLoader, 
+             ddetector_dts: DataLoader, 
+             num_epochs: int = 100, 
+             detector: str = "mmd", 
+             dataset: str = "kadid10k", 
+             feat_ext_slice: int = -2,
+             emb_dim: int = 100):
+
+    if not os.path.exists("drd_"+dataset+".pth"):
+        model = ResNet(embedding_dim=emb_dim, model=model_type).to(device)
         ddetect = drift_detector(detector=detector)
         criterion = nn.CrossEntropyLoss()
         optimizer = optim.Adam(model.parameters(), lr=0.001)
-        for epoch in tqdm(range(num_epochs), desc="Epoch", position=0):
+        for _ in tqdm(range(num_epochs), desc="Epoch", position=0):
             model.train()
             running_loss = 0.0
             for _, images, labels in tqdm(train_dts, desc="batch", position=1, leave=False):
                 optimizer.zero_grad()
-                outputs = model(images.to(device))
+                _, outputs = model(images.to(device))
                 loss = criterion(outputs.to(device), labels.long().to(device))
                 loss.backward()
                 optimizer.step()
                 running_loss += loss.item()
             logger.info(f"Loss: {running_loss/len(train_dts):.4f}")
 
-        torch.save(model.state_dict(), "odld_"+dataset+".pth")
+        torch.save(model.state_dict(), "drd_"+dataset+".pth")
 
     else:
         logger.info("load from dir")
-        model = resnet50(weights='DEFAULT')
-        model.load_state_dict(torch.load("odld_"+dataset+".pth"))
+        model = ResNet(embedding_dim=emb_dim, model=model_type).to(device)
+        model.load_state_dict(
+            torch.load("drd_{}_{}.pth".format(model_type, dataset))
+            )
+        model = model.to(device)
 
-    feat_ext = torch.nn.Sequential(*(list(model.children())[:feat_ext_slice])).eval().to(device)
+    feat_ext = torch.nn.Sequential(
+        *(list(model.children())[:feat_ext_slice])).eval().to(device)
     ddetect = drift_detector()
 
     for _, im, _ in tqdm(ddetector_dts, desc="Drift fit"):  
@@ -163,12 +186,12 @@ if __name__ == "__main__":
 
 
 
-    model_arniqa = load_arniqa_model().to(device)
-    model_odld, ddetect, feat_ext = load_odld(detector="mmd",
+    model_arniqa = fast_load_arniqa_model().to(device)
+    model_drd, ddetect, feat_ext = load_drd(detector="mmd", model_type="resnet18",
         train_dts=train, ddetector_dts=ddet, dataset=dataset, feat_ext_slice=-2
         )
 
-    model_odld.to(device)
+    model_drd.to(device)
     feat_ext.to(device)
 
     all_labels = []
@@ -187,7 +210,7 @@ if __name__ == "__main__":
         im_passed = []; idx=0
         for bimages, images, labels in tqdm(test, desc="Test", position=0):
 
-            outputs = model_odld(images.to(device))
+            _, outputs = model_drd(images.to(device))
             arniqa_outputs = compute_quality_score(
                 model_arniqa, bimages.to(device), images.to(device)
                 )
@@ -244,20 +267,20 @@ plt.grid()
 
 plt.savefig("current_results.jpg")
 
-with open('drifts.csv', 'w', newline='') as csvfile:
-    drift_values = csv.writer(csvfile, delimiter=' ',
-                            quotechar='|', quoting=csv.QUOTE_MINIMAL)
-    for res, step in zip(all_drift_p_values, im_passed):
-        drift_values.writerow([step, res])
+# with open('drifts.csv', 'w', newline='') as csvfile:
+#     drift_values = csv.writer(csvfile, delimiter=' ',
+#                             quotechar='|', quoting=csv.QUOTE_MINIMAL)
+#     for res, step in zip(all_drift_p_values, im_passed):
+#         drift_values.writerow([step, res])
 
-with open('iqs.csv', 'w', newline='') as csvfile:
-    iqa_values = csv.writer(csvfile, delimiter=' ',
-                            quotechar='|', quoting=csv.QUOTE_MINIMAL)
-    for res, step in zip(all_iqscore_values, im_passed):
-        iqa_values.writerow([step, res])
+# with open('iqs.csv', 'w', newline='') as csvfile:
+#     iqa_values = csv.writer(csvfile, delimiter=' ',
+#                             quotechar='|', quoting=csv.QUOTE_MINIMAL)
+#     for res, step in zip(all_iqscore_values, im_passed):
+#         iqa_values.writerow([step, res])
 
-with open('class_choice.csv', 'w', newline='') as csvfile:
-    class_ans = csv.writer(csvfile,
-                            quotechar='|', quoting=csv.QUOTE_MINIMAL)
-    for cl in class_answers:
-        class_ans.writerow([cl])
+# with open('class_choice.csv', 'w', newline='') as csvfile:
+#     class_ans = csv.writer(csvfile,
+#                             quotechar='|', quoting=csv.QUOTE_MINIMAL)
+#     for cl in class_answers:
+#         class_ans.writerow([cl])
