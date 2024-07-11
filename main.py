@@ -100,10 +100,8 @@ def init_dataloaders(dataset="kadid10k", scenario="SnP", batch_size=32):
     return train_loader, test_loader, ddetector_loader
 
 
-def fast_load_arniqa_model(
-                           replacement_enc: nn.Module = None, 
-                           regr_dt: str = "kadid10k", 
-                        ):
+def load_arniqa_model(replacement_enc: nn.Module = None, 
+                      regr_dt: str = "kadid10k", ):
     """Load the pre-trained model."""
     
     # available_datasets = 
@@ -127,13 +125,13 @@ def load_drd(model_type: str,
              detector: str = "mmd", 
              dataset: str = "kadid10k", 
              feat_ext_slice: int = -2,
-             emb_dim: int = 100):
+             emb_dim: int = 3):
 
     if not os.path.exists("drd_"+dataset+".pth"):
         model = ResNet(embedding_dim=emb_dim, model=model_type).to(device)
         ddetect = drift_detector(detector=detector)
         criterion = nn.CrossEntropyLoss()
-        optimizer = optim.Adam(model.parameters(), lr=0.001)
+        optimizer = optim.Adam(model.parameters(), lr=0.005)
         for _ in tqdm(range(num_epochs), desc="Epoch", position=0):
             model.train()
             running_loss = 0.0
@@ -186,7 +184,7 @@ if __name__ == "__main__":
 
 
 
-    model_arniqa = fast_load_arniqa_model().to(device)
+    model_arniqa = load_arniqa_model().to(device)
     model_drd, ddetect, feat_ext = load_drd(detector="mmd", model_type="resnet18",
         train_dts=train, ddetector_dts=ddet, dataset=dataset, feat_ext_slice=-2
         )
