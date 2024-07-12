@@ -6,7 +6,7 @@ import zipfile
 from pathlib import Path
 from sklearn.model_selection import train_test_split
 from dataloaders import kadid10k, VideoFootage
-
+from losses import nt_xent_loss
 from torch.utils.data import Dataset
 from torch.utils.data import DataLoader
 import torchvision.transforms.v2 as T
@@ -125,44 +125,53 @@ def load_drd(model_type: str,
              detector: str = "mmd", 
              dataset: str = "kadid10k", 
              feat_ext_slice: int = -2,
-             emb_dim: int = 3):
+             emb_dim: int = 128):
 
-    if not os.path.exists("drd_"+dataset+".pth"):
-        model = ResNet(embedding_dim=emb_dim, model=model_type).to(device)
+    if not os.path.exists("drd_{}_{}.pth".format(model_type, dataset)):
+        model = ResNet(embedding_dim=emb_dim, model=model_type, use_norm=False).to(device)
         ddetect = drift_detector(detector=detector)
         criterion = nn.CrossEntropyLoss()
-        optimizer = optim.Adam(model.parameters(), lr=0.005)
+        optimizer = optim.Adam(model.parameters(), lr=0.001)
         for _ in tqdm(range(num_epochs), desc="Epoch", position=0):
             model.train()
             running_loss = 0.0
             for _, images, labels in tqdm(train_dts, desc="batch", position=1, leave=False):
                 optimizer.zero_grad()
                 _, outputs = model(images.to(device))
-                loss = criterion(outputs.to(device), labels.long().to(device))
+                loss = criterion(outputs.to(device), labels.to(device))
                 loss.backward()
                 optimizer.step()
                 running_loss += loss.item()
             logger.info(f"Loss: {running_loss/len(train_dts):.4f}")
 
-        torch.save(model.state_dict(), "drd_"+dataset+".pth")
+        torch.save(model.state_dict(), "drd_{}_{}.pth".format(model_type, dataset))
 
     else:
         logger.info("load from dir")
-        model = ResNet(embedding_dim=emb_dim, model=model_type).to(device)
+        model = ResNet(embedding_dim=emb_dim, model=model_type, use_norm=False).to(device)
         model.load_state_dict(
             torch.load("drd_{}_{}.pth".format(model_type, dataset))
             )
         model = model.to(device)
 
-    feat_ext = torch.nn.Sequential(
-        *(list(model.children())[:feat_ext_slice])).eval().to(device)
     ddetect = drift_detector()
 
+    if feat_ext_slice!=0:
+        feat_ext = torch.nn.Sequential(
+            *(list(model.model.children())[:feat_ext_slice])).eval().to(device)
+
+    else:
+        feat_ext = torch.nn.Sequential(
+            *(list(model.model.children())[:])).eval().to(device)
+        
     for _, im, _ in tqdm(ddetector_dts, desc="Drift fit"):  
-        inp = feat_ext(im.to(device))
-        ddetect.fit(inp.reshape(im.shape[0], -1))
+        inp = feat_ext(im.to(device)).reshape(im.shape[0], -1)
+        ddetect.fit(inp)
 
     return model.eval(), ddetect, feat_ext
+
+
+    
 
 
 
@@ -186,9 +195,10 @@ if __name__ == "__main__":
 
     model_arniqa = load_arniqa_model().to(device)
     model_drd, ddetect, feat_ext = load_drd(detector="mmd", model_type="resnet18",
-        train_dts=train, ddetector_dts=ddet, dataset=dataset, feat_ext_slice=-2
+        train_dts=train, ddetector_dts=ddet, dataset=dataset, feat_ext_slice=-1, emb_dim=2
         )
 
+    
     model_drd.to(device)
     feat_ext.to(device)
 
@@ -212,16 +222,14 @@ if __name__ == "__main__":
             arniqa_outputs = compute_quality_score(
                 model_arniqa, bimages.to(device), images.to(device)
                 )
-
+            
             # ddetect.fit(bimages.shape[0])
             _, preds = torch.max(outputs, 1)
-
             all_labels.extend(labels.cpu().numpy())
             all_preds.extend(preds.cpu().numpy())
 
             # preds = preds.unsqueeze(1).to(dtype=torch.long)
             dd_in = feat_ext(images.to(device)).reshape(images.shape[0], -1)
-            
             pv = ddetect.forward(dd_in).item()
 
             meaniq = arniqa_outputs.mean().item()
@@ -232,9 +240,11 @@ if __name__ == "__main__":
             idx+=images.shape[0]; im_passed += [idx]
             for lb in labels:
                 class_answers += [lb.numpy()]
-            for pred in preds:
+            for pred, lbl in zip(preds, labels):
                 if int(pred.cpu().numpy()) not in class_array:
-                    class_array.append(int(pred.cpu().numpy())) 
+                    class_array.append(int(pred.cpu().numpy()))
+                if int(lbl.cpu().numpy()) not in class_array:
+                    class_array.append(int(lbl.cpu().numpy()))
 
             logger.info(("drift p-val:",pv , "mean_iq:", meaniq))
 
