@@ -11,7 +11,7 @@ class drift_detector(nn.Module):
             self.detector = KSDriftDetector(return_p_value=True)
 
     def fit(self, inp):
-        self.detector.fit(inp.long())
+        self.detector.fit(inp)
 
     def forward(self, y_pred):
         return self.detector.compute_p_value(y_pred)

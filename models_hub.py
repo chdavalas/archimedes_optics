@@ -7,6 +7,7 @@ from torchvision.models import resnet18, resnet50
 from dotmap import DotMap
 from losses import nt_xent_loss
 from typing import Tuple
+import torchvision.transforms.v2 as T
 
 dependencies = ["torch"]
 
@@ -70,7 +71,10 @@ class ResNet(nn.Module):
         pretrained (bool): whether to use pretrained weights
         use_norm (bool): whether to normalize the embeddings
     """
-    def __init__(self, model: str, embedding_dim: int, pretrained: bool = True, use_norm: bool = True):
+    def __init__(self, model: str = "resnet50", 
+                 embedding_dim: int = 128, pretrained: bool = True, 
+                 use_norm: bool = True):
+        
         super(ResNet, self).__init__()
 
         self.pretrained = pretrained
@@ -92,7 +96,6 @@ class ResNet(nn.Module):
             else:
                 weights = None
             self.model = resnet18(weights=weights)
-
 
         self.feat_dim = self.model.fc.in_features
         self.model = nn.Sequential(*list(self.model.children())[:-1])
@@ -168,20 +171,27 @@ class ARNIQA(nn.Module):
     function allows returning the concatenated embeddings of the image at full-scale and half-scale. Also, the model can
     return the unscaled score (i.e. in the range of the training dataset).
     """
-    def __init__(self, regressor_dataset: str = "kadid10k"):
+    def __init__(self, enc, regressor_dataset: str = "kadid10k"):
         super(ARNIQA, self).__init__()
         assert regressor_dataset in available_datasets, f"parameter training_dataset must be in {available_datasets}"
         self.regressor_dataset = regressor_dataset
-        self.encoder = ResNet(embedding_dim=128, pretrained=True, use_norm=True)
-        self.encoder.load_state_dict(torch.hub.load_state_dict_from_url(f"{base_url}/ARNIQA.pth", progress=True,
-                                                                      map_location="cpu"))
+        if enc==None:
+            self.encoder = ResNet(embedding_dim=128, pretrained=True, use_norm=True)
+            self.encoder.load_state_dict(torch.hub.load_state_dict_from_url(f"{base_url}/ARNIQA.pth", progress=True,
+                                                                        map_location="cpu"))
+            
+        else:
+            self.encoder = enc
         self.encoder.eval()
         self.regressor: nn.Module = torch.hub.load_state_dict_from_url(f"{base_url}/regressor_{regressor_dataset}.pth",
                                                                         progress=True, map_location="cpu")
         self.regressor.eval()
+        self.mini = T.Compose([T.Resize((128,128))])
 
-    def forward(self, img, img_ds, return_embedding: bool = False, scale_score: bool = True):
+    def forward(self, img, return_embedding: bool = False, scale_score: bool = True):
+        
         f, _ = self.encoder(img)
+        img_ds = self.mini(img) 
         f_ds, _ = self.encoder(img_ds)
         f_combined = torch.hstack((f, f_ds))
         score = self.regressor(f_combined)

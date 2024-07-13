@@ -21,8 +21,11 @@ dstr = [
     'white_noise', 'white_noise_cc'
 ]
 
-distortion_labels = { i:d for i, d in enumerate(dstr)}
+distortion_labels = { i:d for i, d in enumerate(dstr,1)}
+distortion_labels["OK"]=0
+
 distortion_transforms = { d:getattr(dstr_all, d) for d in dstr}
+
 
 class VideoFootage(Dataset):
     def __init__(self, image_paths: str, scenario: str = None, display_im: bool = False):
@@ -44,7 +47,7 @@ class VideoFootage(Dataset):
         image = Image.open(self.image_paths[idx])
         
         if self.scenario ==None:
-            n = np.random.choice(list(self.labels.keys()), 1)[0]
+            random_label = np.random.choice(list(self.labels.keys()), 1)[0]
         else:
             assert self.scenario in list(self.labels.keys())
             n = self.scenario if idx>self.__len__()//2 else "normal"
@@ -89,7 +92,7 @@ class kadid10k(Dataset):
         im_path = self.image_paths[idx]
 
         if len(im_path.replace(".png", "").split("/")[-1])==3:
-            label = 0
+            label = 1
         else:
             quality = int(im_path.split('.')[0][-1])
             # distortion_type = int(im_path.replace(".png", "").split("_")[-2])
@@ -97,10 +100,11 @@ class kadid10k(Dataset):
             #     distortion_type = int(distortion_type[1])
             # else:
             #     distortion_type = int(distortion_type)        
-            if quality in [1,2,3]:
-                label = 0
-            else:
-                label = 1
+            # if quality in [1,2,3]:
+            #     label = 0
+            # else:
+            #     label = 1
+            label = quality
 
         big_image = Image.open(im_path)
 

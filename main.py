@@ -17,10 +17,11 @@ import torch.optim as optim
 import logging
 import numpy as np
 from sklearn.metrics import classification_report
-from models_hub import ResNet, SimCLR
+from models_hub import ResNet, SimCLR, ARNIQA
 import csv
 import matplotlib.pyplot as plt
 from dotmap import DotMap
+from copy import deepcopy
 
 logger = logging.getLogger(__name__)
 
@@ -73,7 +74,9 @@ def init_dataloaders(dataset="kadid10k", scenario="SnP", batch_size=32):
         train_paths += prist_train_paths
         test_paths = prist_test_paths + sorted(test_paths, key=lambda x: x[::-1])
 
-        ddetect_paths = [ i for i in train_paths if int(i.split('.')[0][-1]) in [1,2,3]]
+        ddetect_paths = [ 
+            i for i in train_paths if int(i.split('.')[0][-1]) in [1,2,3]
+            ]
         
         train_dataset = kadid10k(train_paths)
         test_dataset = kadid10k(test_paths)
@@ -81,7 +84,8 @@ def init_dataloaders(dataset="kadid10k", scenario="SnP", batch_size=32):
 
     else:
         # Example image paths and labels
-        image_paths = ['drone_factory_frames/frame_0_{}.jpg'.format(i) for i in range(1, 401)]
+        image_paths = [
+            'drone_factory_frames/frame_0_{}.jpg'.format(i) for i in range(1, 401)]
 
         # Split dataset
         train_paths, test_paths = train_test_split(
@@ -93,9 +97,12 @@ def init_dataloaders(dataset="kadid10k", scenario="SnP", batch_size=32):
 
 
 
-    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
-    test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False, drop_last=True)
-    ddetector_loader = DataLoader(drift_dataset, batch_size=batch_size, shuffle=True, drop_last=True)
+    train_loader = DataLoader(
+        train_dataset, batch_size=batch_size, shuffle=True)
+    test_loader = DataLoader(
+        test_dataset, batch_size=batch_size, shuffle=False, drop_last=True)
+    ddetector_loader = DataLoader(
+        drift_dataset, batch_size=batch_size, shuffle=True, drop_last=True)
 
     return train_loader, test_loader, ddetector_loader
 
@@ -110,49 +117,56 @@ def load_arniqa_model(replacement_enc: nn.Module = None,
     #   "spaq", "clive", "koniq10k"
     # ]
 
-    model = torch.hub.load(repo_or_dir="miccunifi/ARNIQA", source="github", model="ARNIQA",
-                        regressor_dataset=regr_dt)    # You can choose any of the available datasets
-    if replacement_enc:
-        model.encoder = replacement_enc
+    # model = torch.hub.load(
+    #     repo_or_dir="miccunifi/ARNIQA", source="github", model="ARNIQA",
+    #     regressor_dataset=regr_dt
+    #     )    # You can choose any of the available datasets
+    model = ARNIQA(replacement_enc, regressor_dataset=regr_dt)
 
 
     return model.eval().to(device)
 
-def load_drd(model_type: str, 
+def load_drd(enc: nn.Module,
              train_dts: DataLoader, 
-             ddetector_dts: DataLoader, 
+             ddetector_dts: DataLoader,
+             model_type: str = "resnet50",  
              num_epochs: int = 100, 
              detector: str = "mmd", 
              dataset: str = "kadid10k", 
              feat_ext_slice: int = -2,
              emb_dim: int = 128):
 
-    if not os.path.exists("drd_{}_{}.pth".format(model_type, dataset)):
-        model = ResNet(embedding_dim=emb_dim, model=model_type, use_norm=False).to(device)
-        ddetect = drift_detector(detector=detector)
-        criterion = nn.CrossEntropyLoss()
-        optimizer = optim.Adam(model.parameters(), lr=0.001)
-        for _ in tqdm(range(num_epochs), desc="Epoch", position=0):
-            model.train()
-            running_loss = 0.0
-            for _, images, labels in tqdm(train_dts, desc="batch", position=1, leave=False):
-                optimizer.zero_grad()
-                _, outputs = model(images.to(device))
-                loss = criterion(outputs.to(device), labels.to(device))
-                loss.backward()
-                optimizer.step()
-                running_loss += loss.item()
-            logger.info(f"Loss: {running_loss/len(train_dts):.4f}")
+    # if not os.path.exists("drd_{}_{}.pth".format(model_type, dataset)):
+    #     model = ResNet(
+    #         embedding_dim=emb_dim, model=model_type, use_norm=False).to(device)
+    #     ddetect = drift_detector(detector=detector)
+    #     criterion = nn.CrossEntropyLoss()
+    #     optimizer = optim.Adam(model.parameters(), lr=0.001)
+    #     for _ in tqdm(range(num_epochs), desc="Epoch", position=0):
+    #         model.train()
+    #         running_loss = 0.0
+    #         for _, images, labels in tqdm(train_dts,desc="#b",position=1,leave=False):
+    #             optimizer.zero_grad()
+    #             _, outputs = model(images.to(device))
+    #             loss = criterion(outputs.to(device), labels.to(device))
+    #             loss.backward()
+    #             optimizer.step()
+    #             running_loss += loss.item()
+    #         logger.info(f"Loss: {running_loss/len(train_dts):.4f}")
 
-        torch.save(model.state_dict(), "drd_{}_{}.pth".format(model_type, dataset))
+    #     torch.save(model.state_dict(), "drd_{}_{}.pth".format(model_type, dataset))
 
-    else:
-        logger.info("load from dir")
-        model = ResNet(embedding_dim=emb_dim, model=model_type, use_norm=False).to(device)
-        model.load_state_dict(
-            torch.load("drd_{}_{}.pth".format(model_type, dataset))
-            )
-        model = model.to(device)
+    # else:
+        # logger.info("load from dir")
+        # model = ResNet(
+        #     embedding_dim=emb_dim, model=model_type, 
+        #     use_norm=False).to(device)
+        # model.load_state_dict(
+        #     torch.load("drd_{}_{}.pth".format(model_type, dataset))
+        #     )
+        # model = model.to(device)
+
+    model = enc.to(device).eval()
 
     ddetect = drift_detector()
 
@@ -168,7 +182,7 @@ def load_drd(model_type: str,
         inp = feat_ext(im.to(device)).reshape(im.shape[0], -1)
         ddetect.fit(inp)
 
-    return model.eval(), ddetect, feat_ext
+    return model, ddetect, feat_ext
 
 
     
@@ -176,10 +190,10 @@ def load_drd(model_type: str,
 
 
 
-def compute_quality_score(model, img, img_ds):
+def compute_quality_score(model, img):
     """Compute the quality score of the image."""
     with torch.no_grad(), torch.cuda.amp.autocast():
-        score = model(img, img_ds, return_embedding=False, scale_score=True)
+        score = model(img, return_embedding=False, scale_score=True)
 
     return score
 
@@ -194,11 +208,14 @@ if __name__ == "__main__":
 
 
     model_arniqa = load_arniqa_model().to(device)
-    model_drd, ddetect, feat_ext = load_drd(detector="mmd", model_type="resnet18",
-        train_dts=train, ddetector_dts=ddet, dataset=dataset, feat_ext_slice=-1, emb_dim=2
-        )
 
-    
+    model_drd, ddetect, feat_ext = load_drd(
+        enc=deepcopy(model_arniqa.encoder),
+        train_dts=train, ddetector_dts=ddet, 
+        dataset=dataset, feat_ext_slice=-2, 
+        emb_dim=128
+        )
+     
     model_drd.to(device)
     feat_ext.to(device)
 
@@ -220,7 +237,7 @@ if __name__ == "__main__":
 
             _, outputs = model_drd(images.to(device))
             arniqa_outputs = compute_quality_score(
-                model_arniqa, bimages.to(device), images.to(device)
+                model_arniqa, bimages.to(device),
                 )
             
             # ddetect.fit(bimages.shape[0])
