@@ -17,7 +17,7 @@ import torch.optim as optim
 import logging
 import numpy as np
 from sklearn.metrics import classification_report
-from models_hub import ResNet, SimCLR, ARNIQA
+from models_hub import ResNet, ARNIQA
 import csv
 import matplotlib.pyplot as plt
 from dotmap import DotMap
@@ -107,8 +107,7 @@ def init_dataloaders(dataset="kadid10k", scenario="SnP", batch_size=32):
     return train_loader, test_loader, ddetector_loader
 
 
-def load_arniqa_model(replacement_enc: nn.Module = None, 
-                      regr_dt: str = "kadid10k", ):
+def load_arniqa_model(regr_dt: str = "kadid10k", ):
     """Load the pre-trained model."""
     
     # available_datasets = 
@@ -121,20 +120,25 @@ def load_arniqa_model(replacement_enc: nn.Module = None,
     #     repo_or_dir="miccunifi/ARNIQA", source="github", model="ARNIQA",
     #     regressor_dataset=regr_dt
     #     )    # You can choose any of the available datasets
-    model = ARNIQA(replacement_enc, regressor_dataset=regr_dt)
+    model = ARNIQA(regressor_dataset=regr_dt)
 
 
     return model.eval().to(device)
 
-def load_drd(enc: nn.Module,
-             train_dts: DataLoader, 
-             ddetector_dts: DataLoader,
-             model_type: str = "resnet50",  
-             num_epochs: int = 100, 
-             detector: str = "mmd", 
-             dataset: str = "kadid10k", 
-             feat_ext_slice: int = -2,
-             emb_dim: int = 128):
+def load_drd(enc: nn.Module, 
+             ddetector_dts: DataLoader, 
+             dd_type:  str = "mmd", 
+             feat_ext_slice: int = -2):
+
+    # enc: nn.Module,
+    # train_dts: DataLoader, 
+    # ddetector_dts: DataLoader,
+    # model_type: str = "resnet50",  
+    # num_epochs: int = 100, 
+    # detector: str = "mmd", 
+    # dataset: str = "kadid10k", 
+    # feat_ext_slice: int = -2,
+    # emb_dim: int = 128
 
     # if not os.path.exists("drd_{}_{}.pth".format(model_type, dataset)):
     #     model = ResNet(
@@ -168,7 +172,7 @@ def load_drd(enc: nn.Module,
 
     model = enc.to(device).eval()
 
-    ddetect = drift_detector()
+    ddetect = drift_detector(detector=dd_type)
 
     if feat_ext_slice!=0:
         feat_ext = torch.nn.Sequential(
@@ -182,13 +186,7 @@ def load_drd(enc: nn.Module,
         inp = feat_ext(im.to(device)).reshape(im.shape[0], -1)
         ddetect.fit(inp)
 
-    return model, ddetect, feat_ext
-
-
-    
-
-
-
+    return feat_ext, ddetect
 
 def compute_quality_score(model, img):
     """Compute the quality score of the image."""
@@ -200,24 +198,19 @@ def compute_quality_score(model, img):
 if __name__ == "__main__":
 
     dataset="kadid10k"
-    scenario="blur"
     global_batch_size = 32
     train, test, ddet = init_dataloaders(
-        dataset=dataset, batch_size=global_batch_size, scenario=scenario)
-
-
+        dataset=dataset, batch_size=global_batch_size)
 
     model_arniqa = load_arniqa_model().to(device)
 
-    model_drd, ddetect, feat_ext = load_drd(
+    model_drd, ddetect = load_drd(
         enc=deepcopy(model_arniqa.encoder),
-        train_dts=train, ddetector_dts=ddet, 
-        dataset=dataset, feat_ext_slice=-2, 
-        emb_dim=128
+        ddetector_dts=ddet,
+        feat_ext_slice=-2, 
         )
      
     model_drd.to(device)
-    feat_ext.to(device)
 
     all_labels = []
     all_preds = []
@@ -235,18 +228,15 @@ if __name__ == "__main__":
         im_passed = []; idx=0
         for bimages, images, labels in tqdm(test, desc="Test", position=0):
 
-            _, outputs = model_drd(images.to(device))
             arniqa_outputs = compute_quality_score(
                 model_arniqa, bimages.to(device),
                 )
             
             # ddetect.fit(bimages.shape[0])
-            _, preds = torch.max(outputs, 1)
             all_labels.extend(labels.cpu().numpy())
-            all_preds.extend(preds.cpu().numpy())
 
             # preds = preds.unsqueeze(1).to(dtype=torch.long)
-            dd_in = feat_ext(images.to(device)).reshape(images.shape[0], -1)
+            dd_in = model_drd(images.to(device)).reshape(images.shape[0], -1)
             pv = ddetect.forward(dd_in).item()
 
             meaniq = arniqa_outputs.mean().item()
@@ -257,11 +247,6 @@ if __name__ == "__main__":
             idx+=images.shape[0]; im_passed += [idx]
             for lb in labels:
                 class_answers += [lb.numpy()]
-            for pred, lbl in zip(preds, labels):
-                if int(pred.cpu().numpy()) not in class_array:
-                    class_array.append(int(pred.cpu().numpy()))
-                if int(lbl.cpu().numpy()) not in class_array:
-                    class_array.append(int(lbl.cpu().numpy()))
 
             logger.info(("drift p-val:",pv , "mean_iq:", meaniq))
 
@@ -269,11 +254,11 @@ if __name__ == "__main__":
 
 # logger.info classification report
 class_array = np.array([str(i) for i in class_array])
-logger.info(classification_report(
-    all_labels, 
-    all_preds, 
-    target_names=class_array)
-    )
+# logger.info(classification_report(
+#     all_labels, 
+#     all_preds, 
+#     target_names=class_array)
+#     )
 
 
 plt.subplot(2, 1, 1)

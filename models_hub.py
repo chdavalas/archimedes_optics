@@ -61,6 +61,7 @@ class SimpleClassifier(nn.Module):
         x = self.fc2(x)
         return x
 
+
 # Mostly taken from https://github.com/miccunifi/ARNIQA
 class ResNet(nn.Module):
     """
@@ -71,8 +72,9 @@ class ResNet(nn.Module):
         pretrained (bool): whether to use pretrained weights
         use_norm (bool): whether to normalize the embeddings
     """
-    def __init__(self, model: str = "resnet50", 
-                 embedding_dim: int = 128, pretrained: bool = True, 
+    def __init__(self,  
+                 embedding_dim: int = 128, 
+                 pretrained: bool = True, 
                  use_norm: bool = True):
         
         super(ResNet, self).__init__()
@@ -81,21 +83,11 @@ class ResNet(nn.Module):
         self.use_norm = use_norm
         self.embedding_dim = embedding_dim
 
-        assert model in ["resnet18", "resnet50"], "Choose between resnet(18, 50)"
-
-        if model=="resnet50":
-            if self.pretrained:
-                weights = torchvision.models.ResNet50_Weights.IMAGENET1K_V1  
-            else:
-                weights = None
-            self.model = resnet50(weights=weights)
-
-        if model=="resnet18":
-            if self.pretrained:
-                weights = torchvision.models.ResNet18_Weights.IMAGENET1K_V1
-            else:
-                weights = None
-            self.model = resnet18(weights=weights)
+        if self.pretrained:
+            weights = torchvision.models.ResNet50_Weights.IMAGENET1K_V1  
+        else:
+            weights = None
+        self.model = resnet50(weights=weights)
 
         self.feat_dim = self.model.fc.in_features
         self.model = nn.Sequential(*list(self.model.children())[:-1])
@@ -119,47 +111,6 @@ class ResNet(nn.Module):
         else:
             return f, g
 
-# Mostly taken from https://github.com/miccunifi/ARNIQA
-class SimCLR(nn.Module):
-    """
-    SimCLR model class used for pre-training the encoder for IQA.
-
-    Args:
-        encoder_params (dict): encoder parameters with keys
-            - embedding_dim (int): embedding dimension of the encoder projection head
-            - pretrained (bool): whether to use pretrained weights for the encoder
-            - use_norm (bool): whether normalize the embeddings
-        temperature (float): temperature for the loss function. Default: 0.1
-
-    Returns:
-        if training:
-            loss (torch.Tensor): loss value
-        if not training:
-            q (torch.Tensor): image embeddings before the projection head (NxC)
-            proj_q (torch.Tensor): image embeddings after the projection head (NxC)
-
-    """
-
-    def __init__(self, encoder_params: DotMap, temperature: float = 0.1, model: str = "50"):
-        super().__init__()
-
-        self.encoder = ResNet(embedding_dim=encoder_params.embedding_dim,
-                              pretrained=encoder_params.pretrained,
-                              use_norm=encoder_params.use_norm,
-                              model=model)
-
-        self.temperature = temperature
-        self.criterion = nt_xent_loss
-
-    def forward(self, im_q, im_k=None):
-        q, proj_q = self.encoder(im_q)
-
-        if not self.training:
-            return q, proj_q
-
-        k, proj_k = self.encoder(im_k)
-        loss = self.criterion(proj_q, proj_k, self.temperature)
-        return loss
 
 # Mostly taken from https://github.com/miccunifi/ARNIQA
 class ARNIQA(nn.Module):
@@ -171,17 +122,15 @@ class ARNIQA(nn.Module):
     function allows returning the concatenated embeddings of the image at full-scale and half-scale. Also, the model can
     return the unscaled score (i.e. in the range of the training dataset).
     """
-    def __init__(self, enc, regressor_dataset: str = "kadid10k"):
+    def __init__(self, regressor_dataset: str = "kadid10k"):
         super(ARNIQA, self).__init__()
         assert regressor_dataset in available_datasets, f"parameter training_dataset must be in {available_datasets}"
         self.regressor_dataset = regressor_dataset
-        if enc==None:
-            self.encoder = ResNet(embedding_dim=128, pretrained=True, use_norm=True)
-            self.encoder.load_state_dict(torch.hub.load_state_dict_from_url(f"{base_url}/ARNIQA.pth", progress=True,
-                                                                        map_location="cpu"))
-            
-        else:
-            self.encoder = enc
+
+        self.encoder = ResNet(embedding_dim=128, pretrained=True, use_norm=True)
+        self.encoder.load_state_dict(torch.hub.load_state_dict_from_url(f"{base_url}/ARNIQA.pth", progress=True,
+                                                                    map_location="cpu"))
+
         self.encoder.eval()
         self.regressor: nn.Module = torch.hub.load_state_dict_from_url(f"{base_url}/regressor_{regressor_dataset}.pth",
                                                                         progress=True, map_location="cpu")
@@ -225,3 +174,46 @@ class ARNIQA(nn.Module):
             scaled_score = new_range[1] - scaled_score
 
         return scaled_score
+
+
+# Mostly taken from https://github.com/miccunifi/ARNIQA
+# class SimCLR(nn.Module):
+#     """
+#     SimCLR model class used for pre-training the encoder for IQA.
+
+#     Args:
+#         encoder_params (dict): encoder parameters with keys
+#             - embedding_dim (int): embedding dimension of the encoder projection head
+#             - pretrained (bool): whether to use pretrained weights for the encoder
+#             - use_norm (bool): whether normalize the embeddings
+#         temperature (float): temperature for the loss function. Default: 0.1
+
+#     Returns:
+#         if training:
+#             loss (torch.Tensor): loss value
+#         if not training:
+#             q (torch.Tensor): image embeddings before the projection head (NxC)
+#             proj_q (torch.Tensor): image embeddings after the projection head (NxC)
+
+#     """
+
+#     def __init__(self, encoder_params: DotMap, temperature: float = 0.1, model: str = "50"):
+#         super().__init__()
+
+#         self.encoder = ResNet(embedding_dim=encoder_params.embedding_dim,
+#                               pretrained=encoder_params.pretrained,
+#                               use_norm=encoder_params.use_norm,
+#                               model=model)
+
+#         self.temperature = temperature
+#         self.criterion = nt_xent_loss
+
+#     def forward(self, im_q, im_k=None):
+#         q, proj_q = self.encoder(im_q)
+
+#         if not self.training:
+#             return q, proj_q
+
+#         k, proj_k = self.encoder(im_k)
+#         loss = self.criterion(proj_q, proj_k, self.temperature)
+#         return loss
