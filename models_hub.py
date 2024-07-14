@@ -176,6 +176,40 @@ class ARNIQA(nn.Module):
         return scaled_score
 
 
+class LSTM_based_drift(nn.Module):
+    def __init__(self, emb_size, hid_size, num_layers, out_size):
+        super(LSTM_based_drift, self).__init__()
+        
+        self.encoder = ResNet(
+            embedding_dim=emb_size, 
+            pretrained=True, 
+            use_norm=True)
+        
+        self.encoder.load_state_dict(
+            torch.hub.load_state_dict_from_url(
+                f"{base_url}/ARNIQA.pth", progress=True,
+                map_location="cpu")
+                )
+
+        for param in self.encoder.parameters():
+            param.requires_grad = False
+
+        self.encoder.eval()
+
+        self.lstm = nn.LSTM(
+            input_size=emb_size, 
+            hidden_size=hid_size, 
+            num_layers=num_layers, 
+            batch_first=True)
+        
+        self.linear = nn.Linear(num_layers, out_size)
+
+    def forward(self, x):
+        _, x = self.encoder(x)
+        x, _ = self.lstm(x)
+        x = self.linear(x)
+        return x
+
 # Mostly taken from https://github.com/miccunifi/ARNIQA
 # class SimCLR(nn.Module):
 #     """

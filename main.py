@@ -16,7 +16,9 @@ import torch.nn as nn
 import torch.optim as optim
 import logging
 import numpy as np
-from sklearn.metrics import classification_report
+
+from sklearn.metrics import precision_score, recall_score, f1_score
+
 from models_hub import ResNet, ARNIQA
 import csv
 import matplotlib.pyplot as plt
@@ -75,7 +77,7 @@ def init_dataloaders(dataset="kadid10k", scenario="SnP", batch_size=32):
         test_paths = prist_test_paths + sorted(test_paths, key=lambda x: x[::-1])
 
         ddetect_paths = [ 
-            i for i in train_paths if int(i.split('.')[0][-1]) in [1,2,3]
+            i for i in train_paths if int(i.split('.')[0][-1]) in [1]
             ]
         
         train_dataset = kadid10k(train_paths)
@@ -124,6 +126,7 @@ def load_drd(enc: nn.Module,
              feat_ext_slice: int = -2):
 
     model = enc.to(device).eval()
+    mini = T.Compose([T.Resize((128,128))])
 
     ddetect = drift_detector(detector=dd_type)
 
@@ -135,8 +138,8 @@ def load_drd(enc: nn.Module,
         feat_ext = torch.nn.Sequential(
             *(list(model.model.children())[:])).eval().to(device)
         
-    for _, im, _ in tqdm(ddetector_dts, desc="Drift fit"):  
-        inp = feat_ext(im.to(device)).reshape(im.shape[0], -1)
+    for bim, _, _ in tqdm(ddetector_dts, desc="Drift fit"):
+        inp = feat_ext(mini(bim).to(device)).reshape(bim.shape[0], -1)
         ddetect.fit(inp)
 
     return feat_ext, ddetect
@@ -149,7 +152,7 @@ def compute_quality_score(model, img):
     return score
 
 if __name__ == "__main__":
-
+    mini = T.Compose([T.Resize((128,128))])
     dataset="kadid10k"
     global_batch_size = 32
     train, test, ddet = init_dataloaders(
@@ -165,54 +168,68 @@ if __name__ == "__main__":
      
     model_drd.to(device)
 
-    all_labels = []
-    all_preds = []
     all_drift_p_values = []
     all_iqscore_values = []
 
+    drift_pred = []
+    drift_tar = []
 
-    frames_images = []
-    frames_results = []
-
-    class_answers = []
-    class_array = []
+    poor_quality_pred = []
+    poor_quality_tar = []
 
     with torch.no_grad():
         im_passed = []; idx=0
-        for bimages, images, labels in tqdm(test, desc="Test", position=0):
+        for bimages, _, labels in tqdm(test, desc="Test", position=0):
 
             arniqa_outputs = compute_quality_score(
                 model_arniqa, bimages.to(device),
                 )
-            
-            # ddetect.fit(bimages.shape[0])
-            all_labels.extend(labels.cpu().numpy())
-
-            # preds = preds.unsqueeze(1).to(dtype=torch.long)
-            dd_in = model_drd(images.to(device)).reshape(images.shape[0], -1)
+            bimages = mini(bimages)
+            dd_in = model_drd(bimages.to(device)).reshape(bimages.shape[0], -1)
             pv = ddetect.forward(dd_in).item()
+
 
             meaniq = arniqa_outputs.mean().item()
 
             all_drift_p_values.extend([pv])
             all_iqscore_values.extend([meaniq])
 
-            idx+=images.shape[0]; im_passed += [idx]
-            for lb in labels:
-                class_answers += [lb.numpy()]
-
             logger.info(("drift p-val:",pv , "mean_iq:", meaniq))
 
+            # CALCULATE STATISTICS FOR DRIFT
+            if pv>0.05:
+                drift_pred.append(0)
+            else:
+                drift_pred.append(1)
+
+            ideal_labels = torch.tensor([1]*bimages.shape[0])
+
+            if torch.eq(ideal_labels,labels).sum() < bimages.shape[0]//2:
+                drift_tar.append(1)
+            else:
+                drift_tar.append(0)
+
+            # CALCULATE STATISTICS FOR IQA
+            for ao, lbl in zip(arniqa_outputs, labels):
+                if ao.item()>=0.5:
+                    poor_quality_pred.append(0)
+                else:
+                    poor_quality_pred.append(1)
+
+                if lbl.cpu().item()==1:
+                    poor_quality_tar.append(0)
+                else:
+                    poor_quality_tar.append(1)
 
 
-# logger.info classification report
-class_array = np.array([str(i) for i in class_array])
-# logger.info(classification_report(
-#     all_labels, 
-#     all_preds, 
-#     target_names=class_array)
-#     )
-
+logger.info("\nDrift stats")
+logger.info("Precision:%f",precision_score(drift_tar, drift_pred))
+logger.info("Recall:%f",recall_score(drift_tar, drift_pred))
+logger.info("F1:%f",f1_score(drift_tar, drift_pred))
+logger.info("\nIQA stats")
+logger.info("Precision:%f",precision_score(poor_quality_tar, poor_quality_pred))
+logger.info("Recall:%f",recall_score(poor_quality_tar, poor_quality_pred))
+logger.info("F1:%f",f1_score(poor_quality_tar, poor_quality_pred))
 
 plt.subplot(2, 1, 1)
 plt.plot(all_drift_p_values, marker = 'o')
@@ -223,6 +240,7 @@ plt.grid()
 
 plt.subplot(2, 1, 2)
 plt.axvline(len(test)/2, linestyle="--", color="grey")
+plt.axhline(0.5, linestyle="--", color="red")
 plt.plot(all_iqscore_values, color="purple", marker = 'o')
 plt.ylabel("mean image quality score")
 plt.xlabel("# of batches")
