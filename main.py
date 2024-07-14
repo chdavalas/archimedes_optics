@@ -107,21 +107,14 @@ def init_dataloaders(dataset="kadid10k", scenario="SnP", batch_size=32):
     return train_loader, test_loader, ddetector_loader
 
 
-def load_arniqa_model(regr_dt: str = "kadid10k", ):
+def load_arniqa_model(regr_dt: str = "kadid10k"):
     """Load the pre-trained model."""
-    
     # available_datasets = 
     # [
-    #   "live", "csiq", "tid2013", "kadid10k", "flive", 
-    #   "spaq", "clive", "koniq10k"
+    # "live", "csiq", "tid2013", "kadid10k", 
+    # "flive", "spaq", "clive", "koniq10k"
     # ]
-
-    # model = torch.hub.load(
-    #     repo_or_dir="miccunifi/ARNIQA", source="github", model="ARNIQA",
-    #     regressor_dataset=regr_dt
-    #     )    # You can choose any of the available datasets
     model = ARNIQA(regressor_dataset=regr_dt)
-
 
     return model.eval().to(device)
 
@@ -129,46 +122,6 @@ def load_drd(enc: nn.Module,
              ddetector_dts: DataLoader, 
              dd_type:  str = "mmd", 
              feat_ext_slice: int = -2):
-
-    # enc: nn.Module,
-    # train_dts: DataLoader, 
-    # ddetector_dts: DataLoader,
-    # model_type: str = "resnet50",  
-    # num_epochs: int = 100, 
-    # detector: str = "mmd", 
-    # dataset: str = "kadid10k", 
-    # feat_ext_slice: int = -2,
-    # emb_dim: int = 128
-
-    # if not os.path.exists("drd_{}_{}.pth".format(model_type, dataset)):
-    #     model = ResNet(
-    #         embedding_dim=emb_dim, model=model_type, use_norm=False).to(device)
-    #     ddetect = drift_detector(detector=detector)
-    #     criterion = nn.CrossEntropyLoss()
-    #     optimizer = optim.Adam(model.parameters(), lr=0.001)
-    #     for _ in tqdm(range(num_epochs), desc="Epoch", position=0):
-    #         model.train()
-    #         running_loss = 0.0
-    #         for _, images, labels in tqdm(train_dts,desc="#b",position=1,leave=False):
-    #             optimizer.zero_grad()
-    #             _, outputs = model(images.to(device))
-    #             loss = criterion(outputs.to(device), labels.to(device))
-    #             loss.backward()
-    #             optimizer.step()
-    #             running_loss += loss.item()
-    #         logger.info(f"Loss: {running_loss/len(train_dts):.4f}")
-
-    #     torch.save(model.state_dict(), "drd_{}_{}.pth".format(model_type, dataset))
-
-    # else:
-        # logger.info("load from dir")
-        # model = ResNet(
-        #     embedding_dim=emb_dim, model=model_type, 
-        #     use_norm=False).to(device)
-        # model.load_state_dict(
-        #     torch.load("drd_{}_{}.pth".format(model_type, dataset))
-        #     )
-        # model = model.to(device)
 
     model = enc.to(device).eval()
 
@@ -294,3 +247,59 @@ plt.savefig("current_results.jpg")
 #                             quotechar='|', quoting=csv.QUOTE_MINIMAL)
 #     for cl in class_answers:
 #         class_ans.writerow([cl])
+
+# def load_drd(train_dts: DataLoader, 
+#     ddetector_dts: DataLoader,
+#     model_type: str = "resnet50",  
+#     num_epochs: int = 100, 
+#     detector: str = "mmd", 
+#     dataset: str = "kadid10k", 
+#     feat_ext_slice: int = -2,
+#     emb_dim: int = 128,
+#     dd_type: str = "mmd"):
+
+#     if not os.path.exists("drd_{}_{}.pth".format(model_type, dataset)):
+#         model = ResNet(
+#             embedding_dim=emb_dim, model=model_type, use_norm=False).to(device)
+#         ddetect = drift_detector(detector=detector)
+#         criterion = nn.CrossEntropyLoss()
+#         optimizer = optim.Adam(model.parameters(), lr=0.001)
+#         for _ in tqdm(range(num_epochs), desc="Epoch", position=0):
+#             model.train()
+#             running_loss = 0.0
+#             for _, images, labels in tqdm(train_dts,desc="#b",position=1,leave=False):
+#                 optimizer.zero_grad()
+#                 _, outputs = model(images.to(device))
+#                 loss = criterion(outputs.to(device), labels.to(device))
+#                 loss.backward()
+#                 optimizer.step()
+#                 running_loss += loss.item()
+#             logger.info(f"Loss: {running_loss/len(train_dts):.4f}")
+
+#         torch.save(model.state_dict(), "drd_{}_{}.pth".format(model_type, dataset))
+
+#     else:
+#         logger.info("load from dir")
+#         model = ResNet(
+#             embedding_dim=emb_dim, model=model_type, 
+#             use_norm=False).to(device)
+#         model.load_state_dict(
+#             torch.load("drd_{}_{}.pth".format(model_type, dataset))
+#             )
+#         model = model.to(device)
+
+#     ddetect = drift_detector(detector=dd_type)
+
+#     if feat_ext_slice!=0:
+#         feat_ext = torch.nn.Sequential(
+#             *(list(model.model.children())[:feat_ext_slice])).eval().to(device)
+
+#     else:
+#         feat_ext = torch.nn.Sequential(
+#             *(list(model.model.children())[:])).eval().to(device)
+        
+#     for _, im, _ in tqdm(ddetector_dts, desc="Drift fit"):  
+#         inp = feat_ext(im.to(device)).reshape(im.shape[0], -1)
+#         ddetect.fit(inp)
+
+#     return feat_ext, ddetect
