@@ -169,7 +169,7 @@ if __name__ == "__main__":
     model_drd.to(device)
 
     all_drift_p_values = []
-    all_iqscore_values = []
+    mean_iqscore_values = []
 
     drift_pred = []
     drift_tar = []
@@ -192,7 +192,7 @@ if __name__ == "__main__":
             meaniq = arniqa_outputs.mean().item()
 
             all_drift_p_values.extend([pv])
-            all_iqscore_values.extend([meaniq])
+            mean_iqscore_values.extend([meaniq])
 
             logger.info(("drift p-val:",pv , "mean_iq:", meaniq))
 
@@ -221,15 +221,17 @@ if __name__ == "__main__":
                 else:
                     poor_quality_tar.append(1)
 
-
-logger.info("\nDrift stats")
+logger.info("--------------------------------------------------")
+logger.info("Drift stats")
 logger.info("Precision:%f",precision_score(drift_tar, drift_pred))
 logger.info("Recall:%f",recall_score(drift_tar, drift_pred))
 logger.info("F1:%f",f1_score(drift_tar, drift_pred))
-logger.info("\nIQA stats")
+logger.info("--------------------------------------------------")
+logger.info("IQA stats")
 logger.info("Precision:%f",precision_score(poor_quality_tar, poor_quality_pred))
 logger.info("Recall:%f",recall_score(poor_quality_tar, poor_quality_pred))
 logger.info("F1:%f",f1_score(poor_quality_tar, poor_quality_pred))
+logger.info("--------------------------------------------------")
 
 plt.subplot(2, 1, 1)
 plt.plot(all_drift_p_values, marker = 'o')
