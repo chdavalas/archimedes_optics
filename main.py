@@ -19,7 +19,7 @@ import numpy as np
 
 from sklearn.metrics import precision_score, recall_score, f1_score
 
-from models_hub import ResNet, ARNIQA
+from models_hub import ResNet, ARNIQA, LSTM_drift
 import csv
 import matplotlib.pyplot as plt
 from dotmap import DotMap
@@ -144,6 +144,32 @@ def load_drd(enc: nn.Module,
 
     return feat_ext, ddetect
 
+def load_lstm_drift(train_dts: DataLoader, num_epochs: int = 5, out_size: int = 5):
+
+    model = LSTM_drift(emb_size=128, 
+                       hid_size=50, 
+                       num_layers=1, 
+                       out_size=out_size).to(device)
+    
+    optimizer = optim.Adam(model.parameters())
+    criterion = nn.MSELoss()
+
+    optimizer = optim.Adam(model.parameters(), lr=0.001)
+    for _ in tqdm(range(num_epochs), desc="Epoch", position=0):
+        model.train()
+        running_loss = 0.0
+        for _, images, labels in tqdm(train_dts,desc="#b",position=1,leave=False):
+            optimizer.zero_grad()
+            outputs = model(images.to(device))
+            labels= torch.nn.functional.one_hot(labels-1, out_size).float()
+            loss = criterion(outputs.to(device), labels.to(device))
+            loss.backward()
+            optimizer.step()
+            running_loss += loss.item()
+        logger.info(f"Loss: {running_loss/len(train_dts):.4f}")
+
+    return model.eval()
+
 def compute_quality_score(model, img):
     """Compute the quality score of the image."""
     with torch.no_grad(), torch.cuda.amp.autocast():
@@ -166,6 +192,9 @@ if __name__ == "__main__":
         feat_ext_slice=-2, 
         )
      
+    # ONLY TRAINING FOR THE MOMENT (TRAINING NEEDS CHANGES TOO)
+    model_lstm = load_lstm_drift(train_dts=train)
+
     model_drd.to(device)
 
     all_drift_p_values = []
@@ -187,7 +216,6 @@ if __name__ == "__main__":
             bimages = mini(bimages)
             dd_in = model_drd(bimages.to(device)).reshape(bimages.shape[0], -1)
             pv = ddetect.forward(dd_in).item()
-
 
             meaniq = arniqa_outputs.mean().item()
 

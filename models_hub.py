@@ -176,9 +176,9 @@ class ARNIQA(nn.Module):
         return scaled_score
 
 
-class LSTM_based_drift(nn.Module):
+class LSTM_drift(nn.Module):
     def __init__(self, emb_size, hid_size, num_layers, out_size):
-        super(LSTM_based_drift, self).__init__()
+        super(LSTM_drift, self).__init__()
         
         self.encoder = ResNet(
             embedding_dim=emb_size, 
@@ -202,7 +202,7 @@ class LSTM_based_drift(nn.Module):
             num_layers=num_layers, 
             batch_first=True)
         
-        self.linear = nn.Linear(num_layers, out_size)
+        self.linear = nn.Linear(hid_size, out_size)
 
     def forward(self, x):
         _, x = self.encoder(x)
