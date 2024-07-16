@@ -177,7 +177,12 @@ class ARNIQA(nn.Module):
 
 
 class LSTM_drift(nn.Module):
-    def __init__(self, emb_size, hid_size, num_layers, out_size):
+    def __init__(self, 
+                 emb_size: int = 128, 
+                 hid_size: int = 50, 
+                 num_layers: int=2, 
+                 class_out_size: int=2):
+        
         super(LSTM_drift, self).__init__()
         
         self.encoder = ResNet(
@@ -202,12 +207,13 @@ class LSTM_drift(nn.Module):
             num_layers=num_layers, 
             batch_first=True)
         
-        self.linear = nn.Linear(hid_size, out_size)
+        self.linear = nn.Linear(hid_size, class_out_size)
 
     def forward(self, x):
         _, x = self.encoder(x)
         x, _ = self.lstm(x)
         x = self.linear(x)
+        x = torch.sigmoid(x)
         return x
 
 # Mostly taken from https://github.com/miccunifi/ARNIQA

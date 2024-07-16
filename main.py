@@ -144,25 +144,28 @@ def load_drd(enc: nn.Module,
 
     return feat_ext, ddetect
 
-def load_lstm_drift(train_dts: DataLoader, num_epochs: int = 5, out_size: int = 5):
+def load_lstm_drift(train_dts: DataLoader, num_epochs: int = 15, out_size: int = 2):
 
     model = LSTM_drift(emb_size=128, 
                        hid_size=50, 
-                       num_layers=1, 
-                       out_size=out_size).to(device)
+                       num_layers=2,
+                       class_out_size=out_size).to(device)
     
-    optimizer = optim.Adam(model.parameters())
+    mini = T.Compose([T.Resize((128,128))])
     criterion = nn.MSELoss()
-
     optimizer = optim.Adam(model.parameters(), lr=0.001)
     for _ in tqdm(range(num_epochs), desc="Epoch", position=0):
         model.train()
         running_loss = 0.0
-        for _, images, labels in tqdm(train_dts,desc="#b",position=1,leave=False):
-            optimizer.zero_grad()
+        for bimages, _, labels in tqdm(train_dts,desc="#b",position=1,leave=False):
+            labels = torch.where(labels>0, 1, 0)
+
+            images = mini(bimages)
             outputs = model(images.to(device))
-            labels= torch.nn.functional.one_hot(labels-1, out_size).float()
-            loss = criterion(outputs.to(device), labels.to(device))
+
+            labels = torch.nn.functional.one_hot(labels.long(), out_size)
+
+            loss = criterion(outputs.to(device), labels.float().to(device))
             loss.backward()
             optimizer.step()
             running_loss += loss.item()
@@ -210,6 +213,9 @@ if __name__ == "__main__":
         im_passed = []; idx=0
         for bimages, _, labels in tqdm(test, desc="Test", position=0):
 
+            images = mini(bimages)
+            outputs = model_lstm(images.to(device))
+            
             arniqa_outputs = compute_quality_score(
                 model_arniqa, bimages.to(device),
                 )
@@ -222,7 +228,9 @@ if __name__ == "__main__":
             all_drift_p_values.extend([pv])
             mean_iqscore_values.extend([meaniq])
 
+            logger.info("---------")
             logger.info(("drift p-val:",pv , "mean_iq:", meaniq))
+            logger.info(("lstm_mean:", outputs.mean()))
 
             # CALCULATE STATISTICS FOR DRIFT
             if pv>0.05:
