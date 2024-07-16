@@ -144,32 +144,44 @@ def load_drd(enc: nn.Module,
 
     return feat_ext, ddetect
 
-def load_lstm_drift(train_dts: DataLoader, num_epochs: int = 15, out_size: int = 2):
+def load_lstm_drift(train_dts: DataLoader, num_epochs: int = 100, out_size: int = 2):
 
+    model_type = "lstm"
     model = LSTM_drift(emb_size=128, 
                        hid_size=50, 
                        num_layers=2,
                        class_out_size=out_size).to(device)
     
-    mini = T.Compose([T.Resize((128,128))])
-    criterion = nn.MSELoss()
-    optimizer = optim.Adam(model.parameters(), lr=0.001)
-    for _ in tqdm(range(num_epochs), desc="Epoch", position=0):
-        model.train()
-        running_loss = 0.0
-        for bimages, _, labels in tqdm(train_dts,desc="#b",position=1,leave=False):
-            labels = torch.where(labels>0, 1, 0)
+    if not os.path.exists("drd_{}.pth".format(model_type)):
 
-            images = mini(bimages)
-            outputs = model(images.to(device))
+        mini = T.Compose([T.Resize((128,128))])
+        criterion = nn.MSELoss()
+        optimizer = optim.Adam(model.parameters(), lr=0.001)
+        for _ in tqdm(range(num_epochs), desc="Epoch", position=0):
+            model.train()
+            running_loss = 0.0
+            for bimages, _, labels in tqdm(train_dts,desc="#b",position=1,leave=False):
+                labels = torch.where(labels>1, 1, 0)
 
-            labels = torch.nn.functional.one_hot(labels.long(), out_size)
+                images = mini(bimages)
+                outputs = model(images.to(device))
 
-            loss = criterion(outputs.to(device), labels.float().to(device))
-            loss.backward()
-            optimizer.step()
-            running_loss += loss.item()
-        logger.info(f"Loss: {running_loss/len(train_dts):.4f}")
+                labels = torch.nn.functional.one_hot(labels.long(), out_size)
+
+                loss = criterion(outputs.to(device), labels.float().to(device))
+                loss.backward()
+                optimizer.step()
+                running_loss += loss.item()
+            logger.info(f"Loss: {running_loss/len(train_dts):.4f}")
+
+        torch.save(model.state_dict(), "drd_{}.pth".format(model_type))
+
+    else:
+        logger.info("load from dir")
+        model.load_state_dict(
+            torch.load("drd_{}.pth".format(model_type))
+            )
+        model = model.to(device)
 
     return model.eval()
 
@@ -183,7 +195,7 @@ def compute_quality_score(model, img):
 if __name__ == "__main__":
     mini = T.Compose([T.Resize((128,128))])
     dataset="kadid10k"
-    global_batch_size = 32
+    global_batch_size = 64
     train, test, ddet = init_dataloaders(
         dataset=dataset, batch_size=global_batch_size)
 
@@ -202,6 +214,7 @@ if __name__ == "__main__":
 
     all_drift_p_values = []
     mean_iqscore_values = []
+    all_lstm_mean_values = []
 
     drift_pred = []
     drift_tar = []
@@ -209,28 +222,39 @@ if __name__ == "__main__":
     poor_quality_pred = []
     poor_quality_tar = []
 
+
+    lstm_drift_pred = []
+    lstm_drift_tar = []
+
+
     with torch.no_grad():
         im_passed = []; idx=0
         for bimages, _, labels in tqdm(test, desc="Test", position=0):
 
             images = mini(bimages)
-            outputs = model_lstm(images.to(device))
+            lstm_outputs = model_lstm(images.to(device))
             
             arniqa_outputs = compute_quality_score(
                 model_arniqa, bimages.to(device),
                 )
-            bimages = mini(bimages)
-            dd_in = model_drd(bimages.to(device)).reshape(bimages.shape[0], -1)
+            
+            dd_in = model_drd(images.to(device)).reshape(bimages.shape[0], -1)
             pv = ddetect.forward(dd_in).item()
 
             meaniq = arniqa_outputs.mean().item()
 
-            all_drift_p_values.extend([pv])
-            mean_iqscore_values.extend([meaniq])
+            lstm_labels = torch.where(labels>1, 1, 0)
+            lstm_labels = torch.nn.functional.one_hot(lstm_labels.long(), 2)
+            lstm_mean = torch.argmax(lstm_outputs, dim=1).float().mean()
+
+            all_drift_p_values.append(pv)
+            mean_iqscore_values.append(meaniq)
+            all_lstm_mean_values.append(lstm_mean.item())
 
             logger.info("---------")
-            logger.info(("drift p-val:",pv , "mean_iq:", meaniq))
-            logger.info(("lstm_mean:", outputs.mean()))
+            logger.info(("drift p-val:",pv))
+            logger.info(("mean_iq:", meaniq))
+            logger.info(("lstm_mean:", lstm_mean.item()))
 
             # CALCULATE STATISTICS FOR DRIFT
             if pv>0.05:
@@ -244,6 +268,19 @@ if __name__ == "__main__":
                 drift_tar.append(1)
             else:
                 drift_tar.append(0)
+
+            # CALCULATE STATISTICS FOR LSTM
+            if lstm_mean.item()>0.5:
+                lstm_drift_pred.append(1)
+            else:
+                lstm_drift_pred.append(0)
+
+            lstm_labels_argmax = torch.argmax(lstm_labels, dim=1)
+            lstm_labels_01 = torch.where(labels>1, 1, 0)
+            if torch.eq(lstm_labels_argmax,lstm_labels_01).sum() > bimages.shape[0]//2:
+                lstm_drift_tar.append(1)
+            else:
+                lstm_drift_tar.append(0)
 
             # CALCULATE STATISTICS FOR IQA
             for ao, lbl in zip(arniqa_outputs, labels):
@@ -268,19 +305,38 @@ logger.info("Precision:%f",precision_score(poor_quality_tar, poor_quality_pred))
 logger.info("Recall:%f",recall_score(poor_quality_tar, poor_quality_pred))
 logger.info("F1:%f",f1_score(poor_quality_tar, poor_quality_pred))
 logger.info("--------------------------------------------------")
+logger.info("LSTM stats")
+logger.info("Precision:%f",precision_score(lstm_drift_tar, lstm_drift_pred))
+logger.info("Recall:%f",recall_score(lstm_drift_tar, lstm_drift_pred))
+logger.info("F1:%f",f1_score(lstm_drift_tar, lstm_drift_pred))
+logger.info("--------------------------------------------------")
 
-plt.subplot(2, 1, 1)
-plt.plot(all_drift_p_values, marker = 'o')
+
+plt.subplot(3, 1, 1)
+plt.plot(all_drift_p_values)
 plt.axvline(len(test)/2, linestyle="--", color="grey")
 plt.axhline(0.05, linestyle="--", color="red")
+x  = [ i for i, _ in enumerate(all_drift_p_values)]
+plt.fill_between(x, 0, 0.05, alpha=0.3, color="red")
 plt.ylabel("drift p-value")
 plt.grid()
 
-plt.subplot(2, 1, 2)
+plt.subplot(3, 1, 2)
 plt.axvline(len(test)/2, linestyle="--", color="grey")
 plt.axhline(0.5, linestyle="--", color="red")
-plt.plot(mean_iqscore_values, color="purple", marker = 'o')
-plt.ylabel("mean image quality score")
+x  = [ i for i, _ in enumerate(all_drift_p_values)]
+plt.fill_between(x, 0, 0.5, alpha=0.3, color="red")
+plt.plot(mean_iqscore_values, color="purple")
+plt.ylabel("mean image\nquality score")
+plt.grid()
+
+plt.subplot(3, 1, 3)
+plt.axvline(len(test)/2, linestyle="--", color="grey")
+plt.axhline(0.5, linestyle="--", color="red")
+x  = [ i for i, _ in enumerate(all_drift_p_values)]
+plt.fill_between(x, 0.5, 1, alpha=0.3, color="red")
+plt.plot(all_lstm_mean_values, color="blue")
+plt.ylabel("drift detected\nlstm score")
 plt.xlabel("# of batches")
 plt.grid()
 

@@ -92,7 +92,7 @@ class kadid10k(Dataset):
         im_path = self.image_paths[idx]
 
         if len(im_path.replace(".png", "").split("/")[-1])==3:
-            label = 0
+            label = 1
         else:
             quality = int(im_path.split('.')[0][-1])
             # distortion_type = int(im_path.replace(".png", "").split("_")[-2])
@@ -104,7 +104,7 @@ class kadid10k(Dataset):
             #     label = 0
             # else:
             #     label = 1
-            label = quality-1
+            label = quality
 
         big_image = Image.open(im_path)
 
