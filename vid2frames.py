@@ -1,33 +1,31 @@
 
 import os
 import cv2
-from PIL import Image
-from tqdm import tqdm
+from sys import argv
 
 
-if not os.path.exists("drone_factory_frames"):
-    os.mkdir("drone_factory_frames")
 
-path_to_save = os.path.relpath("drone_factory_frames", ".")
+filename = argv[1]
 
+folder_name = filename.split("/")[-1][:-4]
 
-pbar = tqdm(total=400*1)
-for k in range(1):
-    frame_idx = 1
-    cap = cv2.VideoCapture("drone_factory.mp4")
+if not os.path.exists(folder_name):
+    os.mkdir(folder_name)
 
-    while(cap.isOpened() and frame_idx<401):
+path_to_save = os.path.relpath(folder_name, ".")
 
-        ret, frame = cap.read()
-        if(ret == True):
+cap = cv2.VideoCapture(filename)
+frame_idx = 0
+while(cap.isOpened()):
+    
+    ret, frame = cap.read()
 
-            name = 'frame_{}_{}.jpg'.format(k, frame_idx)
-            cv2.imwrite(os.path.join(path_to_save, name), frame)
-            frame_idx += 1
-        
-        else:
-            continue
-
-    pbar.update(400)
+    if(ret == True):
+        print("frame_{}".format(frame_idx))
+        name = 'frame_{}_{}.jpg'.format(folder_name, frame_idx)
+        cv2.imwrite(os.path.join(path_to_save, name), frame)
+        frame_idx+=1
+    else:
+        break
 
 cap.release()

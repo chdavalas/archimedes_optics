@@ -19,7 +19,7 @@ from utils_distortions import fspecial, filter2D, curves, imscatter, mapmm
 
 #From https://github.com/miccunifi/ARNIQA
 
-def gaussian_blur(x: torch.Tensor, blur_sigma: int = 0.1) -> torch.Tensor:
+def gaussian_blur(x: torch.Tensor, blur_sigma: int = 5) -> torch.Tensor:
     fs = 2 * math.ceil(2 * blur_sigma) + 1
     h = fspecial('gaussian', (fs, fs), blur_sigma)
     h = torch.from_numpy(h).float()
@@ -134,7 +134,7 @@ def color_saturation1(x: torch.Tensor, factor: int) -> torch.Tensor:
     return y[[2, 1, 0], ...]
 
 
-def color_saturation2(x: torch.Tensor, factor: int) -> torch.Tensor:
+def color_saturation2(x: torch.Tensor, factor: int = 5) -> torch.Tensor:
     x = x[[2, 1, 0], ...]
     lab = kornia.color.rgb_to_lab(x)
     lab[1:3, ...] = lab[1:3, ...] * factor

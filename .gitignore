@@ -6,6 +6,8 @@ kadid*
 display*
 drone_factory_frames
 video_maker.py
+videos*
+assembly*
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

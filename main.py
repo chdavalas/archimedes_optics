@@ -37,7 +37,7 @@ torch.manual_seed(0)
 
 device = torch.device("cuda") if torch.cuda.is_available() else "cpu"
 
-def init_dataloaders(dataset="kadid10k", scenario="SnP", batch_size=32):
+def init_dataloaders(dataset="kadid10k", batch_size=32):
 
     # Create datasets and loaders
     if dataset == "kadid10k":
@@ -69,34 +69,34 @@ def init_dataloaders(dataset="kadid10k", scenario="SnP", batch_size=32):
         # Split dataset
         train_paths, test_paths = train_test_split(
             image_paths, test_size=0.4, random_state=42, shuffle=True)
-
-        prist_train_paths, prist_test_paths = train_test_split(
-            pristine_images, test_size=0.4, random_state=42, shuffle=True)
-
-        train_paths += prist_train_paths
-        test_paths = prist_test_paths + sorted(test_paths, key=lambda x: x[::-1])
-
-        ddetect_paths = [ 
-            i for i in train_paths if int(i.split('.')[0][-1]) in [1]
-            ]
         
+        test_paths = sorted(test_paths, key=lambda x: x[::-1])
+
         train_dataset = kadid10k(train_paths)
         test_dataset = kadid10k(test_paths)
-        drift_dataset = kadid10k(ddetect_paths)
+
+        # held-out from training+testing
+        drift_dataset = kadid10k(pristine_images)
 
     else:
-        # Example image paths and labels
+        # Example image paths and labels (we take the images sorted very fast)
+        im_count = len(os.listdir(dataset))
         image_paths = [
-            'drone_factory_frames/frame_0_{}.jpg'.format(i) for i in range(1, 401)]
+            dataset+'/frame_'+dataset+'_{}.jpg'.format(i) for i in range(im_count)]
 
         # Split dataset
         train_paths, test_paths = train_test_split(
             image_paths, test_size=0.5, random_state=42, shuffle=False)
 
-        train_dataset = VideoFootage(train_paths)
-        test_dataset = VideoFootage(test_paths, scenario=scenario, display_im=True)
-        drift_dataset = VideoFootage(train_paths, scenario="normal")
+        # train_paths, ddet_paths  = train_test_split(
+        #     train_paths, test_size=0.5, random_state=42, shuffle=True)
 
+        train_dataset = VideoFootage(train_paths)
+        test_dataset = VideoFootage(test_paths)
+        drift_dataset = VideoFootage(train_paths, distort=False)
+        print(train_dataset.__len__())
+        print(test_dataset.__len__())
+        print(drift_dataset.__len__())
 
 
     train_loader = DataLoader(
@@ -123,10 +123,12 @@ def load_arniqa_model(regr_dt: str = "kadid10k"):
 def load_drd(enc: nn.Module, 
              ddetector_dts: DataLoader, 
              dd_type:  str = "mmd", 
-             feat_ext_slice: int = -2):
+             feat_ext_slice: int = -2,
+             minimize_f: nn.Module = None):
 
     model = enc.to(device).eval()
-    mini = T.Compose([T.Resize((128,128))])
+    if minimize_f==None:
+        minimize_f = T.Compose([T.Resize((64,64))])
 
     ddetect = drift_detector(detector=dd_type)
 
@@ -137,9 +139,13 @@ def load_drd(enc: nn.Module,
     else:
         feat_ext = torch.nn.Sequential(
             *(list(model.model.children())[:])).eval().to(device)
-        
+    
+    for p in feat_ext.parameters():
+        p.requires_grad_(False)
+
     for bim, _, _ in tqdm(ddetector_dts, desc="Drift fit"):
-        inp = feat_ext(mini(bim).to(device)).reshape(bim.shape[0], -1)
+        inp = feat_ext(minimize_f(bim).to(device))
+        inp = inp.reshape(bim.shape[0], -1)
         ddetect.fit(inp)
 
     return feat_ext, ddetect
@@ -194,6 +200,8 @@ def compute_quality_score(model, img):
 
 if __name__ == "__main__":
     mini = T.Compose([T.Resize((128,128))])
+    
+    # dataset="assembly_line_extreme_inspection"
     dataset="kadid10k"
     global_batch_size = 64
     train, test, ddet = init_dataloaders(
@@ -205,6 +213,7 @@ if __name__ == "__main__":
         enc=deepcopy(model_arniqa.encoder),
         ddetector_dts=ddet,
         feat_ext_slice=-2, 
+        minimize_f = mini
         )
      
     # ONLY TRAINING FOR THE MOMENT (TRAINING NEEDS CHANGES TOO)
@@ -230,15 +239,16 @@ if __name__ == "__main__":
     with torch.no_grad():
         im_passed = []; idx=0
         for bimages, _, labels in tqdm(test, desc="Test", position=0):
-
             images = mini(bimages)
+            
             lstm_outputs = model_lstm(images.to(device))
             
             arniqa_outputs = compute_quality_score(
                 model_arniqa, bimages.to(device),
                 )
             
-            dd_in = model_drd(images.to(device)).reshape(bimages.shape[0], -1)
+            dd_in = model_drd(images.to(device))
+            dd_in = dd_in.reshape(bimages.shape[0], -1)
             pv = ddetect.forward(dd_in).item()
 
             meaniq = arniqa_outputs.mean().item()
