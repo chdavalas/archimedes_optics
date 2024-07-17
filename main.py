@@ -120,7 +120,7 @@ def load_arniqa_model(regr_dt: str = "kadid10k"):
 def load_drd(enc: nn.Module, 
              ddetector_dts: DataLoader, 
              dd_type:  str = "mmd", 
-             feat_ext_slice: int = 0,
+             feat_ext_slice: int = 3,
              minimize_f: nn.Module = None):
 
     model = enc.to(device).eval()
@@ -141,7 +141,8 @@ def load_drd(enc: nn.Module,
     
     for p in feat_ext.parameters():
         p.requires_grad_(False)
-        flip = T.RandomHorizontalFlip(p=0.5)
+    
+    flip = T.RandomHorizontalFlip(p=0.5)
     for bim, _, _ in tqdm(ddetector_dts, desc="Drift fit"):
         inp = feat_ext(flip(minimize_f(bim)).to(device))
         inp = inp.reshape(bim.shape[0], -1)
@@ -200,7 +201,7 @@ def compute_quality_score(model, img):
 if __name__ == "__main__":
     mini = T.Compose([T.Resize((128,128))])
     
-    dataset="traffic_inspection"
+    dataset="factory_inspection"
     # dataset="assembly_line_extreme_inspection"
     # dataset="assembly_line_inspection"
     # dataset="kadid10k"
@@ -213,7 +214,7 @@ if __name__ == "__main__":
     model_drd, ddetect = load_drd(
         enc=deepcopy(model_arniqa.encoder),
         ddetector_dts=ddet,
-        feat_ext_slice=0, 
+        feat_ext_slice=-1, 
         minimize_f = mini
         )
      
