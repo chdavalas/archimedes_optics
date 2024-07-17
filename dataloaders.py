@@ -27,7 +27,7 @@ dstr = [
 distortion_transforms = { i:getattr(dstr_all, d) for i,d in enumerate(dstr)}
 
 class VideoFootage(Dataset):
-    def __init__(self, image_paths: str, distort: bool = True):
+    def __init__(self, image_paths: str, distort: bool = False):
 
         self.image_paths = image_paths
         # self.display_im = display_im
@@ -38,6 +38,11 @@ class VideoFootage(Dataset):
         self.distort = distort
         np.random.seed(seed=1234)
 
+        self.last_half = self.__len__()//2
+        self.end = self.__len__()
+
+        self.random_dist = np.random.choice([i for i in range(self.last_half, self.end)], self.last_half)
+        print(self.random_dist)
     def __len__(self):
         return len(self.image_paths)
 
@@ -45,45 +50,30 @@ class VideoFootage(Dataset):
 
 
         image = Image.open(self.image_paths[idx])
-        
-        # if self.scenario ==None:
-        #     random_label = np.random.choice(list(self.labels.keys()), 1)[0]
-        # else:
-        #     assert self.scenario in list(self.labels.keys())
-        #     n = self.scenario if idx>self.__len__()//2 else "normal"
-
-        # if self.display_im:
-        #     display_image = image
-
 
         preproc = T.Compose([
             T.CenterCrop(size=min(image.size)),
-            T.ToImage(), T.ToDtype(torch.float32, scale=True),
+            T.ToTensor(), T.ToDtype(torch.float32, scale=True),
             T.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+            
         ])
-        
+
+
+
         image = preproc(image)
-        if idx<self.__len__()//2 or not self.distort:
-            label = torch.tensor([1])
+        if idx<self.__len__()//2:
+            label = torch.tensor(1)
         else:
             if self.distort:
-                # image = self.transforms[0](image)
-                label = torch.tensor([1])
-        
-        # minimize = T.Compose([T.Resize((128,128)),])
+                if idx in self.random_dist:
+                    image = self.transforms[0](image)
+                    label = torch.tensor(2)
+                else:
+                    label = torch.tensor(1)
+            else:
+                label = torch.tensor(1)
 
-        # small_image = minimize(image)
 
-        # label = torch.tensor(self.labels[n])
-        # if self.display_im:
-        #     if not exists("display_frames"):
-        #         mkdir("display_frames")
-        #     plt.xticks([])
-        #     plt.yticks([])
-        #     plt.imshow(display_image)
-            
-        #     plt.savefig(join("display_frames", "frame_{}.jpg".format(idx)), bbox_inches ="tight")
-        #     plt.close()
         return image, label, label
 
 class kadid10k(Dataset):
@@ -101,15 +91,6 @@ class kadid10k(Dataset):
             label = 1
         else:
             quality = int(im_path.split('.')[0][-1])
-            # distortion_type = int(im_path.replace(".png", "").split("_")[-2])
-            # if distortion_type[0]=="0":
-            #     distortion_type = int(distortion_type[1])
-            # else:
-            #     distortion_type = int(distortion_type)        
-            # if quality in [1,2,3]:
-            #     label = 0
-            # else:
-            #     label = 1
             label = quality
 
         big_image = Image.open(im_path)
@@ -123,7 +104,7 @@ class kadid10k(Dataset):
         ds_preproc = T.Compose([
             T.Resize((128,128)),
         ])
-        
+
         big_image = preproc(big_image)
         small_image = ds_preproc(big_image)
         

@@ -88,12 +88,9 @@ def init_dataloaders(dataset="kadid10k", batch_size=32):
         train_paths, test_paths = train_test_split(
             image_paths, test_size=0.5, random_state=42, shuffle=False)
 
-        # train_paths, ddet_paths  = train_test_split(
-        #     train_paths, test_size=0.5, random_state=42, shuffle=True)
-
-        train_dataset = VideoFootage(train_paths)
-        test_dataset = VideoFootage(test_paths)
-        drift_dataset = VideoFootage(train_paths, distort=False)
+        train_dataset = VideoFootage(train_paths, distort=True)
+        test_dataset = VideoFootage(test_paths, distort=True)
+        drift_dataset = VideoFootage(train_paths)
         print(train_dataset.__len__())
         print(test_dataset.__len__())
         print(drift_dataset.__len__())
@@ -123,12 +120,14 @@ def load_arniqa_model(regr_dt: str = "kadid10k"):
 def load_drd(enc: nn.Module, 
              ddetector_dts: DataLoader, 
              dd_type:  str = "mmd", 
-             feat_ext_slice: int = -2,
+             feat_ext_slice: int = 0,
              minimize_f: nn.Module = None):
 
     model = enc.to(device).eval()
     if minimize_f==None:
         minimize_f = T.Compose([T.Resize((64,64))])
+
+
 
     ddetect = drift_detector(detector=dd_type)
 
@@ -142,9 +141,9 @@ def load_drd(enc: nn.Module,
     
     for p in feat_ext.parameters():
         p.requires_grad_(False)
-
+        flip = T.RandomHorizontalFlip(p=0.5)
     for bim, _, _ in tqdm(ddetector_dts, desc="Drift fit"):
-        inp = feat_ext(minimize_f(bim).to(device))
+        inp = feat_ext(flip(minimize_f(bim)).to(device))
         inp = inp.reshape(bim.shape[0], -1)
         ddetect.fit(inp)
 
@@ -201,8 +200,10 @@ def compute_quality_score(model, img):
 if __name__ == "__main__":
     mini = T.Compose([T.Resize((128,128))])
     
+    dataset="traffic_inspection"
     # dataset="assembly_line_extreme_inspection"
-    dataset="kadid10k"
+    # dataset="assembly_line_inspection"
+    # dataset="kadid10k"
     global_batch_size = 64
     train, test, ddet = init_dataloaders(
         dataset=dataset, batch_size=global_batch_size)
@@ -212,7 +213,7 @@ if __name__ == "__main__":
     model_drd, ddetect = load_drd(
         enc=deepcopy(model_arniqa.encoder),
         ddetector_dts=ddet,
-        feat_ext_slice=-2, 
+        feat_ext_slice=0, 
         minimize_f = mini
         )
      
@@ -248,14 +249,17 @@ if __name__ == "__main__":
                 )
             
             dd_in = model_drd(images.to(device))
+
             dd_in = dd_in.reshape(bimages.shape[0], -1)
+
             pv = ddetect.forward(dd_in).item()
 
             meaniq = arniqa_outputs.mean().item()
-
             lstm_labels = torch.where(labels>1, 1, 0)
             lstm_labels = torch.nn.functional.one_hot(lstm_labels.long(), 2)
             lstm_mean = torch.argmax(lstm_outputs, dim=1).float().mean()
+
+            print(arniqa_outputs, labels)
 
             all_drift_p_values.append(pv)
             mean_iqscore_values.append(meaniq)
