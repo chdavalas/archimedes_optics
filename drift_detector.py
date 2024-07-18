@@ -15,4 +15,4 @@ class drift_detector(nn.Module):
         self.detector.fit(inp)
 
     def forward(self, y_pred):
-        return self.detector.forward(y_pred)
+        return self.detector.compute_p_value(y_pred)

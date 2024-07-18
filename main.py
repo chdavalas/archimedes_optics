@@ -19,7 +19,7 @@ import numpy as np
 
 from sklearn.metrics import precision_score, recall_score, f1_score
 
-from models_hub import ResNet, ARNIQA, LSTM_drift
+from models_hub import ResNet, ARNIQA, LSTM_drift, Net
 import csv
 import matplotlib.pyplot as plt
 from dotmap import DotMap
@@ -88,8 +88,8 @@ def init_dataloaders(dataset="kadid10k", batch_size=32):
         train_paths, test_paths = train_test_split(
             image_paths, test_size=0.5, random_state=42, shuffle=False)
 
-        train_dataset = VideoFootage(train_paths, distort=True)
-        test_dataset = VideoFootage(test_paths, distort=True)
+        train_dataset = VideoFootage(train_paths, shard=3)
+        test_dataset = VideoFootage(test_paths, distort="last")
         drift_dataset = VideoFootage(train_paths)
         print(train_dataset.__len__())
         print(test_dataset.__len__())
@@ -119,38 +119,63 @@ def load_arniqa_model(regr_dt: str = "kadid10k"):
 
 def load_drd(enc: nn.Module, 
              ddetector_dts: DataLoader, 
+             train_dts: DataLoader,
              dd_type:  str = "mmd", 
              feat_ext_slice: int = 3,
-             minimize_f: nn.Module = None):
+             minimize_f: nn.Module = None,
+             num_epochs: int = 30):
 
-    model = enc.to(device).eval()
-    if minimize_f==None:
-        minimize_f = T.Compose([T.Resize((64,64))])
-
-
+    model_type = "simple"
+    # model = enc.to(device).eval()
 
     ddetect = drift_detector(detector=dd_type)
 
+    if not os.path.exists("drd_{}.pth".format(model_type)):
+        model = Net().to(device)
+        criterion = nn.BCEWithLogitsLoss()
+        optimizer = optim.Adam(model.parameters(), lr=0.0005)
+        for _ in tqdm(range(num_epochs), desc="Epoch", position=0):
+            model.train()
+            running_loss = 0.0
+            for bimages, labels in tqdm(train_dts,desc="#b",position=1,leave=False):
+
+                outputs = model(bimages.to(device))
+                labels = torch.nn.functional.one_hot(labels, 10)
+                loss = criterion(outputs.to(device), labels.float().to(device))
+                loss.backward()
+                optimizer.step()
+                running_loss += loss.item()
+                # print(torch.sum(outputs.argmax(dim=1).to(device)==labels.to(device))/bimages.shape[0])
+
+            logger.info(f"Loss: {running_loss/len(train_dts):.4f}")
+            # print(outputs, labels)
+        torch.save(model.state_dict(), "drd_{}.pth".format(model_type))
+
+    else:
+        logger.info("load from dir")
+        model = Net()
+        model.load_state_dict(
+            torch.load("drd_{}.pth".format(model_type))
+            )
+        model = model.to(device)
     if feat_ext_slice!=0:
         feat_ext = torch.nn.Sequential(
-            *(list(model.model.children())[:feat_ext_slice])).eval().to(device)
+            *(list(model.children())[:feat_ext_slice])).eval().to(device)
 
     else:
         feat_ext = torch.nn.Sequential(
-            *(list(model.model.children())[:])).eval().to(device)
+            *(list(model.children())[:])).eval().to(device)
     
-    for p in feat_ext.parameters():
-        p.requires_grad_(False)
-    
-    flip = T.RandomHorizontalFlip(p=0.5)
-    for bim, _, _ in tqdm(ddetector_dts, desc="Drift fit"):
-        inp = feat_ext(flip(minimize_f(bim)).to(device))
+    feat_ext = model
+    for bim, _ in tqdm(ddetector_dts, desc="Drift fit"):
+        inp = feat_ext(bim.to(device))
         inp = inp.reshape(bim.shape[0], -1)
         ddetect.fit(inp)
+        print(inp)
 
     return feat_ext, ddetect
 
-def load_lstm_drift(train_dts: DataLoader, num_epochs: int = 100, out_size: int = 2):
+def load_lstm_drift(train_dts: DataLoader, num_epochs: int = 5, out_size: int = 2):
 
     model_type = "lstm"
     model = LSTM_drift(emb_size=128, 
@@ -166,7 +191,7 @@ def load_lstm_drift(train_dts: DataLoader, num_epochs: int = 100, out_size: int 
         for _ in tqdm(range(num_epochs), desc="Epoch", position=0):
             model.train()
             running_loss = 0.0
-            for bimages, _, labels in tqdm(train_dts,desc="#b",position=1,leave=False):
+            for bimages, labels in tqdm(train_dts,desc="#b",position=1,leave=False):
                 labels = torch.where(labels>1, 1, 0)
 
                 images = mini(bimages)
@@ -201,11 +226,11 @@ def compute_quality_score(model, img):
 if __name__ == "__main__":
     mini = T.Compose([T.Resize((128,128))])
     
-    dataset="factory_inspection"
+    # dataset="factory_inspection"
     # dataset="assembly_line_extreme_inspection"
-    # dataset="assembly_line_inspection"
+    dataset="assembly_line_inspection"
     # dataset="kadid10k"
-    global_batch_size = 64
+    global_batch_size = 32
     train, test, ddet = init_dataloaders(
         dataset=dataset, batch_size=global_batch_size)
 
@@ -214,8 +239,8 @@ if __name__ == "__main__":
     model_drd, ddetect = load_drd(
         enc=deepcopy(model_arniqa.encoder),
         ddetector_dts=ddet,
-        feat_ext_slice=-1, 
-        minimize_f = mini
+        train_dts=train,
+        feat_ext_slice=0, 
         )
      
     # ONLY TRAINING FOR THE MOMENT (TRAINING NEEDS CHANGES TOO)
@@ -240,7 +265,7 @@ if __name__ == "__main__":
 
     with torch.no_grad():
         im_passed = []; idx=0
-        for bimages, _, labels in tqdm(test, desc="Test", position=0):
+        for bimages, labels in tqdm(test, desc="Test", position=0):
             images = mini(bimages)
             
             lstm_outputs = model_lstm(images.to(device))
@@ -248,11 +273,9 @@ if __name__ == "__main__":
             arniqa_outputs = compute_quality_score(
                 model_arniqa, bimages.to(device),
                 )
-            
             dd_in = model_drd(images.to(device))
 
             dd_in = dd_in.reshape(bimages.shape[0], -1)
-
             pv = ddetect.forward(dd_in).item()
 
             meaniq = arniqa_outputs.mean().item()

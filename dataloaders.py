@@ -27,7 +27,7 @@ dstr = [
 distortion_transforms = { i:getattr(dstr_all, d) for i,d in enumerate(dstr)}
 
 class VideoFootage(Dataset):
-    def __init__(self, image_paths: str, distort: bool = False):
+    def __init__(self, image_paths: str, distort: str = "", shard: int = 0):
 
         self.image_paths = image_paths
         # self.display_im = display_im
@@ -40,9 +40,9 @@ class VideoFootage(Dataset):
 
         self.last_half = self.__len__()//2
         self.end = self.__len__()
-
+        self.shard = shard
         self.random_dist = np.random.choice([i for i in range(self.last_half, self.end)], self.last_half)
-        print(self.random_dist)
+
     def __len__(self):
         return len(self.image_paths)
 
@@ -53,28 +53,26 @@ class VideoFootage(Dataset):
 
         preproc = T.Compose([
             T.CenterCrop(size=min(image.size)),
-            T.ToTensor(), T.ToDtype(torch.float32, scale=True),
+            T.ToImage(), T.ToDtype(torch.float32, scale=True),
             T.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
             
         ])
 
-
-
         image = preproc(image)
-        if idx<self.__len__()//2:
-            label = torch.tensor(1)
-        else:
-            if self.distort:
-                if idx in self.random_dist:
-                    image = self.transforms[0](image)
-                    label = torch.tensor(2)
-                else:
-                    label = torch.tensor(1)
+        # if self.distort and idx in self.random_dist:
+        if idx > self.last_half and self.distort=="last":
+            image = self.transforms[0](image)
+            label = torch.tensor(2)
+        elif self.shard:
+            if idx%self.shard==0:
+                image = self.transforms[0](image)
+                label = torch.tensor(2)
             else:
                 label = torch.tensor(1)
+        else:
+            label = torch.tensor(1)
 
-
-        return image, label, label
+        return image, label
 
 class kadid10k(Dataset):
     def __init__(self, image_paths: str):
