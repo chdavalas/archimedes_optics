@@ -38,20 +38,22 @@ available_datasets_mos_types = {
 base_url = "https://github.com/miccunifi/ARNIQA/releases/download/weights"
 
 class Net(nn.Module):
-    def __init__(self):
+    def __init__(self, emb_dim):
         super().__init__()
-        self.conv1 = nn.Conv2d(3, 6, 3)
-        self.pool = nn.MaxPool2d(2, 2)
-        self.conv2 = nn.Conv2d(6, 16, 3)
-        self.fc1 = nn.Linear(16 * 30 * 30, 16)
-        self.fc2 = nn.Linear(16, 32)
-        self.fc3 = nn.Linear(32, 10)
+        self.conv1 = nn.Conv2d(3, 16, kernel_size=3, stride=2)
+        self.conv2 = nn.Conv2d(16, 32, kernel_size=3, stride=2)
+        self.conv3 = nn.Conv2d(32, 64, kernel_size=3, stride=2)
+        self.fc1 = nn.Linear(14400, 32)
+        self.fc2 = nn.Linear(32, 16)
+        self.fc3 = nn.Linear(16, emb_dim)
 
     def forward(self, x):
         x = T.Resize((128,128))(x)
-        x = self.pool(F.relu(self.conv1(x)))
-        x = self.pool(F.relu(self.conv2(x)))
+        x = F.relu(self.conv1(x))
+        x = F.relu(self.conv2(x))
+        x = F.relu(self.conv3(x))
         x = torch.flatten(x, 1) # flatten all dimensions except batch
+        # print(x.shape)
         x = F.relu(self.fc1(x))
         x = F.relu(self.fc2(x))
         x = self.fc3(x)
@@ -229,6 +231,7 @@ class LSTM_drift(nn.Module):
         self.linear = nn.Linear(hid_size, class_out_size)
 
     def forward(self, x):
+        x = T.Resize((128,128))(x)
         _, x = self.encoder(x)
         x, _ = self.lstm(x)
         x = self.linear(x)
