@@ -133,44 +133,44 @@ def load_drd(ddetector_dts: DataLoader,
     # model = enc.to(device).eval()
 
     ddetect = drift_detector(detector=dd_type)
-   
-    if not os.path.exists("drd_{}.pth".format(model_type)):
-        model = ResNet18(head_dim=emb_dim).to(device)
+    model = ARNIQA().encoder
+    # if not os.path.exists("drd_{}.pth".format(model_type)):
+    #     model = ResNet18(head_dim=emb_dim).to(device)
 
-        torch.save(model.state_dict(), "drd_{}.pth".format(model_type))
-        criterion = nn.CrossEntropyLoss()
-        optimizer = optim.SGD(model.parameters(), lr=0.001)
-        for _ in tqdm(range(num_epochs), desc="Epoch", position=0):
-            model.train()
-            running_loss = 0.0
-            for bimages, labels in tqdm(train_dts,desc="#b",position=1,leave=False):
+    #     torch.save(model.state_dict(), "drd_{}.pth".format(model_type))
+    #     criterion = nn.CrossEntropyLoss()
+    #     optimizer = optim.SGD(model.parameters(), lr=0.001)
+    #     for _ in tqdm(range(num_epochs), desc="Epoch", position=0):
+    #         model.train()
+    #         running_loss = 0.0
+    #         for bimages, labels in tqdm(train_dts,desc="#b",position=1,leave=False):
 
-                outputs = model(bimages.to(device))
-                # labels = torch.nn.functional.one_hot(labels, emb_dim)
-                loss = criterion(outputs.to(device), labels.long().to(device))
-                loss.backward()
-                optimizer.step()
-                running_loss += loss.item()
-                #print(torch.sum(outputs.argmax(dim=1).to(device)==labels.to(device))/bimages.shape[0])
+    #             outputs = model(bimages.to(device))
+    #             # labels = torch.nn.functional.one_hot(labels, emb_dim)
+    #             loss = criterion(outputs.to(device), labels.long().to(device))
+    #             loss.backward()
+    #             optimizer.step()
+    #             running_loss += loss.item()
+    #             #print(torch.sum(outputs.argmax(dim=1).to(device)==labels.to(device))/bimages.shape[0])
 
-            logger.info(f"Loss: {running_loss/len(train_dts):.4f}")
-            # print(outputs, labels)
-            torch.save(model.state_dict(), "drd_{}.pth".format(model_type))
+    #         logger.info(f"Loss: {running_loss/len(train_dts):.4f}")
+    #         # print(outputs, labels)
+    #         torch.save(model.state_dict(), "drd_{}.pth".format(model_type))
 
-    else:
-        logger.info("load from dir")
-        model = ResNet18(head_dim=emb_dim)
-        model.load_state_dict(
-            torch.load("drd_{}.pth".format(model_type))
-            )
-        model = model.to(device)
+    # else:
+    #     logger.info("load from dir")
+    #     model = ResNet18(head_dim=emb_dim)
+    #     model.load_state_dict(
+    #         torch.load("drd_{}.pth".format(model_type))
+    #         )
+    model = model.to(device)
     
     if feat_ext_slice!=0:
         feat_ext = torch.nn.Sequential(
             *(list(model.model.children())[:feat_ext_slice])).eval().to(device)
 
     else:
-        feat_ext = deepcopy(model).eval().to(device)
+        feat_ext = deepcopy(model.model).eval().to(device)
     
     
     for param in feat_ext.parameters():
@@ -237,7 +237,7 @@ if __name__ == "__main__":
     # dataset="assembly_line_extreme_inspection"
     # dataset="assembly_line_inspection"
     # dataset="kadid10k"
-    global_batch_size = 16
+    global_batch_size = 32
     train, test, ddet = init_dataloaders(
         dataset=dataset, batch_size=global_batch_size)
 
