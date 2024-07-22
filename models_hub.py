@@ -40,18 +40,19 @@ base_url = "https://github.com/miccunifi/ARNIQA/releases/download/weights"
 class Net(nn.Module):
     def __init__(self, emb_dim):
         super().__init__()
-        self.conv1 = nn.Conv2d(3, 16, kernel_size=3, stride=2)
-        self.conv2 = nn.Conv2d(16, 32, kernel_size=3, stride=2)
-        self.conv3 = nn.Conv2d(32, 64, kernel_size=3, stride=2)
-        self.fc1 = nn.Linear(14400, 32)
+        self.conv1 = nn.Conv2d(3, 16, kernel_size=3, stride=1)
+        self.conv2 = nn.Conv2d(16, 32, kernel_size=3, stride=1)
+        self.conv3 = nn.Conv2d(32, 64, kernel_size=3, stride=1)
+        self.pool = nn.MaxPool2d(2,2)
+        self.fc1 = nn.Linear(64*14*14, 32)
         self.fc2 = nn.Linear(32, 16)
         self.fc3 = nn.Linear(16, emb_dim)
 
     def forward(self, x):
         x = T.Resize((128,128))(x)
-        x = F.relu(self.conv1(x))
-        x = F.relu(self.conv2(x))
-        x = F.relu(self.conv3(x))
+        x = self.pool(F.relu(self.conv1(x)))
+        x = self.pool(F.relu(self.conv2(x)))
+        x = self.pool(F.relu(self.conv3(x)))
         x = torch.flatten(x, 1) # flatten all dimensions except batch
         # print(x.shape)
         x = F.relu(self.fc1(x))
@@ -82,6 +83,42 @@ class SimpleClassifier(nn.Module):
         x = self.fc2(x)
         return x
 
+
+class ResNet18(nn.Module):
+    """
+    ResNet model with a projection head.
+
+    Args:
+        embedding_dim (int): embedding dimension of the projection head
+        pretrained (bool): whether to use pretrained weights
+        use_norm (bool): whether to normalize the embeddings
+    """
+    def __init__(self,  
+                 head_dim: int, 
+                 pretrained: bool = True, 
+                 use_norm: bool = True):
+        
+        super(ResNet18, self).__init__()
+
+        self.pretrained = pretrained
+        self.use_norm = use_norm
+        self.head = head_dim
+
+        if self.pretrained:
+            weights = torchvision.models.ResNet18_Weights.IMAGENET1K_V1  
+        else:
+            weights = None
+        self.model = resnet18(weights=weights)
+
+        self.feat_dim = self.model.fc.in_features
+        self.model = nn.Sequential(*list(self.model.children())[:-1])
+        self.head = nn.Sequential(nn.Linear(self.feat_dim, self.head))
+
+    def forward(self, x):
+        x = T.Resize((128,128))(x)
+        f = self.model(x)
+        g = self.head(f.squeeze())
+        return g
 
 # Mostly taken from https://github.com/miccunifi/ARNIQA
 class ResNet(nn.Module):

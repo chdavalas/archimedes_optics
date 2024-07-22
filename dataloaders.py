@@ -10,37 +10,36 @@ import torchvision.transforms.v2 as T
 import distortions as dstr_all
 
 dstr = [
-    'gaussian_blur', 'brighten', 'color_block', 'color_diffusion', 
+    'gaussian_blur', 'motion_blur', 'brighten', 'color_block', 'color_diffusion', 
     'color_saturation1', 'color_saturation2', 'color_shift', 
     'darken', 'decode_jpeg', 'encode_jpeg', 
     'high_sharpen', 'impulse_noise', 
     'jitter', 'jpeg', 'jpeg2000', 
     'lens_blur', 'linear_contrast_change', 'mean_shift', 
-    'motion_blur', 'multiplicative_noise', 'non_eccentricity_patch', 
+     'multiplicative_noise', 'non_eccentricity_patch', 
     'non_linear_contrast_change', 'pixelate', 'quantization', 
     'white_noise', 'white_noise_cc'
 ]
 
 # distortion_labels = { i:d for i, d in enumerate(dstr,1)}
 # distortion_labels[0]=[0]
+np.random.seed(seed=1234)
 
 distortion_transforms = { i:getattr(dstr_all, d) for i,d in enumerate(dstr)}
 
 class VideoFootage(Dataset):
-    def __init__(self, image_paths: str, distort: str = "", shard: int = 0):
+    def __init__(self, image_paths: str, distort: str = ""):
 
         self.image_paths = image_paths
         # self.display_im = display_im
 
         # self.labels = distortion_labels
         self.transforms = distortion_transforms
-
         self.distort = distort
-        np.random.seed(seed=1234)
+
 
         self.last_half = self.__len__()//2
         self.end = self.__len__()
-        self.shard = shard
         self.random_dist = np.random.choice([i for i in range(self.last_half, self.end)], self.last_half)
 
     def __len__(self):
@@ -63,8 +62,11 @@ class VideoFootage(Dataset):
         if idx > self.last_half and self.distort=="last":
             image = self.transforms[0](image)
             label = torch.tensor(2)
-        elif self.shard:
-            if idx%self.shard==0:
+        elif self.distort=="rand":
+            if np.random.choice([0,1,2],1)[0]==0:
+                image = self.transforms[1](image)
+                label = torch.tensor(0)
+            if np.random.choice([0,1,2],1)[0]==1:
                 image = self.transforms[0](image)
                 label = torch.tensor(2)
             else:
