@@ -87,10 +87,10 @@ def init_dataloaders(dataset="kadid10k", batch_size=32):
 
         # Split dataset
         train_paths, test_paths = train_test_split(
-            image_paths, test_size=0.5, random_state=42, shuffle=True)
+            image_paths, test_size=0.25, random_state=42, shuffle=False)
 
         _, dd_paths = train_test_split(
-            train_paths, test_size=0.8, random_state=42, shuffle=True)
+            train_paths, test_size=0.5, random_state=42, shuffle=True)
     
 
         train_dataset = VideoFootage(train_paths, distort="rand")
@@ -231,11 +231,13 @@ def compute_quality_score(model, img):
 
 if __name__ == "__main__":
     
+    dataset="traffic_inspection"
+    # dataset="pipe_inspection"
     # dataset="factory_inspection"
     # dataset="assembly_line_extreme_inspection"
-    dataset="assembly_line_inspection"
+    # dataset="assembly_line_inspection"
     # dataset="kadid10k"
-    global_batch_size = 32
+    global_batch_size = 16
     train, test, ddet = init_dataloaders(
         dataset=dataset, batch_size=global_batch_size)
 
@@ -245,7 +247,7 @@ if __name__ == "__main__":
         ddetector_dts=ddet,
         train_dts=train,
         feat_ext_slice=0, 
-        num_epochs=50,
+        num_epochs=10,
         emb_dim=3
     )
      
@@ -283,15 +285,15 @@ if __name__ == "__main__":
             dd_in = dd_in.reshape(bimages.shape[0], -1)
             pv = ddetect.forward(dd_in).item()
             if pv>0:
-                print("drift detected:",pv)
-                input()
-
+                print("NO drift detected:",pv)
+                # input()
+ 
             meaniq = arniqa_outputs.mean().item()
             lstm_labels = torch.where(labels>1, 1, 0)
             lstm_labels = torch.nn.functional.one_hot(lstm_labels.long(), 2)
             lstm_mean = torch.argmax(lstm_outputs, dim=1).float().mean()
 
-            print(dd_in, arniqa_outputs, dd_in.argmax(dim=1), labels)
+            # print(dd_in, arniqa_outputs, dd_in.argmax(dim=1), labels)
 
             all_drift_p_values.append(pv)
             mean_iqscore_values.append(meaniq)
