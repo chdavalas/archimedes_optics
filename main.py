@@ -360,6 +360,7 @@ logger.info("F1:%f",f1_score(lstm_drift_tar, lstm_drift_pred))
 logger.info("--------------------------------------------------")
 
 
+plt.title(dataset)
 plt.subplot(3, 1, 1)
 plt.plot(all_drift_p_values)
 plt.axvline(len(test)/2, linestyle="--", color="grey")
