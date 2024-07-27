@@ -180,6 +180,7 @@ def load_drd(ddetector_dts: DataLoader,
     for bim, _ in tqdm(ddetector_dts, desc="Drift fit"):
         bim =  T.FiveCrop(size=360)(bim)
         bim  = torch.cat(bim, dim=0)
+        bim = bim[torch.randperm(bim.shape[0])]
         inp = feat_ext(bim.to(device))
         inp = inp.reshape(bim.shape[0], -1)
         ddetect.fit(inp)
@@ -240,7 +241,7 @@ if __name__ == "__main__":
     # dataset="assembly_line_extreme_inspection"
     # dataset="assembly_line_inspection"
     # dataset="kadid10k"
-    global_batch_size = 32
+    global_batch_size = 16
     train, test, ddet = init_dataloaders(
         dataset=dataset, batch_size=global_batch_size)
 
@@ -285,6 +286,7 @@ if __name__ == "__main__":
                 )
             bim = T.FiveCrop(size=360)(bimages)
             bim  = torch.cat(bim, dim=0)
+            bim = bim[torch.randperm(bim.shape[0])]
             dd_in = model_drd(bim.to(device))
             dd_in = dd_in.reshape(bim.shape[0], -1)
             pv = ddetect.forward(dd_in).item()

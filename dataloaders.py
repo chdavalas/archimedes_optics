@@ -50,7 +50,7 @@ class VideoFootage(Dataset):
         image = Image.open(self.image_paths[idx])
 
         preproc = T.Compose([
-            # T.CenterCrop(size=min(image.size[1:])),
+            T.CenterCrop(size=min(image.size[1:])),
             T.ToImage(), T.ToDtype(torch.float32, scale=True),
             T.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
         ])
