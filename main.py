@@ -24,6 +24,7 @@ import csv
 import matplotlib.pyplot as plt
 from dotmap import DotMap
 from copy import deepcopy
+from random import shuffle
 
 logger = logging.getLogger(__name__)
 
@@ -177,6 +178,8 @@ def load_drd(ddetector_dts: DataLoader,
         param.requires_grad = False
 
     for bim, _ in tqdm(ddetector_dts, desc="Drift fit"):
+        bim =  T.FiveCrop(size=360)(bim)
+        bim  = torch.cat(bim, dim=0)
         inp = feat_ext(bim.to(device))
         inp = inp.reshape(bim.shape[0], -1)
         ddetect.fit(inp)
@@ -280,9 +283,10 @@ if __name__ == "__main__":
             arniqa_outputs = compute_quality_score(
                 model_arniqa, bimages.to(device),
                 )
-            dd_in = model_drd(bimages.to(device))
-
-            dd_in = dd_in.reshape(bimages.shape[0], -1)
+            bim = T.FiveCrop(size=360)(bimages)
+            bim  = torch.cat(bim, dim=0)
+            dd_in = model_drd(bim.to(device))
+            dd_in = dd_in.reshape(bim.shape[0], -1)
             pv = ddetect.forward(dd_in).item()
             if pv>0:
                 print("NO drift detected:",pv)
