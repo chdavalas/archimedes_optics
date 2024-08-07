@@ -8,6 +8,7 @@ drone_factory_frames
 video_maker.py
 videos*
 *inspection
+tmp.py
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

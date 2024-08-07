@@ -15,7 +15,7 @@ class drift_detector(nn.Module):
         #     self.detector = KSDriftDetector(return_p_value=True)
 
     def fit(self, inp):
-        self.detector = MMDDrift(inp.cpu().numpy(), backend="pytorch", device='cuda',)
+        self.detector = MMDDrift(inp.cpu().numpy(), backend="pytorch", device='cuda')
         return self.detector
 
     def forward(self, y_pred):

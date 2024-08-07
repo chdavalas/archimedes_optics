@@ -86,10 +86,10 @@ def init_dataloaders(dataset="kadid10k", batch_size=32):
 
         # Split dataset
         dd_paths, test_paths = train_test_split(
-            image_paths, test_size=0.85, random_state=42, shuffle=False)
+            image_paths, test_size=0.95, random_state=42, shuffle=False)
 
-        _, dd_paths = train_test_split(dd_paths, test_size=batch_size*2, random_state=42, shuffle=True)
-    
+        # _, dd_paths = train_test_split(dd_paths, test_size=batch_size*2, random_state=42, shuffle=True)
+        shuffle(dd_paths)
 
         train_dataset = VideoFootage(dd_paths, distort="rand")
         test_dataset = VideoFootage(test_paths, distort="last")
@@ -128,12 +128,7 @@ def load_drd(ddetector_dts: DataLoader,
     ddetect = drift_detector(detector=dd_type)
     model = ARNIQA().encoder.to(device)
     
-    if feat_ext_slice!=0:
-        feat_ext = torch.nn.Sequential(
-            *(list(model.model.children())[:feat_ext_slice])).eval().to(device)
-
-    else:
-        feat_ext = deepcopy(model.model).eval().to(device)
+    feat_ext = torch.nn.Sequential(deepcopy(model)).eval().to(device)
     
     
     for param in feat_ext.parameters():
@@ -143,10 +138,11 @@ def load_drd(ddetector_dts: DataLoader,
     for bim, _ in tqdm(ddetector_dts, desc="Drift fit"):
         # bim =  T.FiveCrop(size=bim.shape[-1]//2)(bim)
         # bim  = torch.cat(bim, dim=0)
-        bim = bim[torch.randperm(bim.shape[0])]
-        inp = feat_ext(bim.to(device))
-        inp = inp.reshape(bim.shape[0], -1)
+        # bim = bim[torch.randperm(bim.shape[0])]
+        _, inp = feat_ext(bim.to(device))
         
+        inp = inp.argmax(dim=1).unsqueeze(1).float()
+        print(inp.permute(1,0))
         x_ref.append(inp)
 
     x_ref = torch.cat(x_ref, dim=0)
@@ -202,7 +198,7 @@ def compute_quality_score(model, img):
 
 if __name__ == "__main__":
     help_string = '''usage python3 main.py 
-    [pipe_inspection, traffic_inspection, factory_inspection, assembly_line_extreme_inspection, assembly_line_inspection, kadid10k] 
+    [pipe_inspection, traffic_inspection, factory_inspection, assembly_line_extreme_inspection, dashcam_inspection, assembly_line_inspection, kadid10k] 
     [batch_size]
     [seed]'''
 
@@ -216,6 +212,7 @@ if __name__ == "__main__":
         "factory_inspection", 
         "assembly_line_extreme_inspection", 
         "assembly_line_inspection", 
+        "dashcam_inspection",
         "kadid10k"] and len(sys.argv)==4, help_string
     
     train, test, ddet = init_dataloaders(
@@ -256,8 +253,9 @@ if __name__ == "__main__":
             # bim = T.FiveCrop(size=bimages.shape[-1]//2)(bimages)
             # bim  = torch.cat(bim, dim=0)
             # bim = bim[torch.randperm(bim.shape[0])]
-            dd_in = model_drd(bimages.to(device))
-            dd_in = dd_in.reshape(bimages.shape[0], -1)
+            _, dd_in = model_drd(bimages.to(device))
+            dd_in = dd_in.argmax(dim=1).unsqueeze(1).float()
+            print(dd_in.permute(1,0))
             pv = ddetect.forward(dd_in)
  
             meaniq = arniqa_outputs.mean().item()
