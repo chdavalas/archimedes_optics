@@ -8,6 +8,7 @@ from os.path import exists, join
 from os import mkdir
 import torchvision.transforms.v2 as T
 import distortions as dstr_all
+import sys
 
 dstr = [
     'gaussian_blur', 'motion_blur', 'brighten', 'color_block', 'color_diffusion', 
@@ -23,7 +24,7 @@ dstr = [
 
 # distortion_labels = { i:d for i, d in enumerate(dstr,1)}
 # distortion_labels[0]=[0]
-np.random.seed(seed=1234)
+np.random.seed(seed=int(sys.argv[3]))
 
 distortion_transforms = { i:getattr(dstr_all, d) for i,d in enumerate(dstr)}
 
@@ -101,13 +102,8 @@ class kadid10k(Dataset):
             T.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
         ])
 
-        ds_preproc = T.Compose([
-            T.Resize((128,128)),
-        ])
-
         big_image = preproc(big_image)
-        small_image = ds_preproc(big_image)
         
         label = torch.tensor(label, dtype=torch.long)
 
-        return big_image, small_image, label
+        return big_image, label

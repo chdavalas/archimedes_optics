@@ -18,7 +18,7 @@ import logging
 import numpy as np
 from torchvision.models import resnet18
 from sklearn.metrics import precision_score, recall_score, f1_score
-
+import sys
 from models_hub import ResNet, ARNIQA, LSTM_drift, Net, ResNet18
 import csv
 import matplotlib.pyplot as plt
@@ -33,8 +33,6 @@ logging.basicConfig(
     filemode='w', 
     format='%(levelname)s:%(message)s',
     level=logging.INFO)
-
-torch.manual_seed(0)
 
 device = torch.device("cuda") if torch.cuda.is_available() else "cpu"
 
@@ -69,7 +67,7 @@ def init_dataloaders(dataset="kadid10k", batch_size=32):
 
         # Split dataset
         train_paths, test_paths = train_test_split(
-            image_paths, test_size=0.4, random_state=42, shuffle=True)
+            image_paths, test_size=0.5, random_state=42, shuffle=True)
         
         test_paths = sorted(test_paths, key=lambda x: x[::-1])
 
@@ -87,14 +85,13 @@ def init_dataloaders(dataset="kadid10k", batch_size=32):
         
 
         # Split dataset
-        train_paths, test_paths = train_test_split(
-            image_paths, test_size=0.25, random_state=42, shuffle=False)
+        dd_paths, test_paths = train_test_split(
+            image_paths, test_size=0.85, random_state=42, shuffle=False)
 
-        _, dd_paths = train_test_split(
-            train_paths, test_size=0.5, random_state=42, shuffle=True)
+        _, dd_paths = train_test_split(dd_paths, test_size=batch_size*2, random_state=42, shuffle=True)
     
 
-        train_dataset = VideoFootage(train_paths, distort="rand")
+        train_dataset = VideoFootage(dd_paths, distort="rand")
         test_dataset = VideoFootage(test_paths, distort="last")
         drift_dataset = VideoFootage(dd_paths)
         print(train_dataset.__len__())
@@ -124,47 +121,12 @@ def load_arniqa_model(regr_dt: str = "kadid10k"):
     return model.eval().to(device)
 
 def load_drd(ddetector_dts: DataLoader, 
-             train_dts: DataLoader,
              dd_type:  str = "mmd", 
-             feat_ext_slice: int = 3,
-             num_epochs: int = 30,
-             emb_dim: int = 10):
+             feat_ext_slice: int = 0):
 
-    model_type = "simple"
-    # model = enc.to(device).eval()
 
     ddetect = drift_detector(detector=dd_type)
-    model = ARNIQA().encoder
-    # if not os.path.exists("drd_{}.pth".format(model_type)):
-    #     model = ResNet18(head_dim=emb_dim).to(device)
-
-    #     torch.save(model.state_dict(), "drd_{}.pth".format(model_type))
-    #     criterion = nn.CrossEntropyLoss()
-    #     optimizer = optim.SGD(model.parameters(), lr=0.001)
-    #     for _ in tqdm(range(num_epochs), desc="Epoch", position=0):
-    #         model.train()
-    #         running_loss = 0.0
-    #         for bimages, labels in tqdm(train_dts,desc="#b",position=1,leave=False):
-
-    #             outputs = model(bimages.to(device))
-    #             # labels = torch.nn.functional.one_hot(labels, emb_dim)
-    #             loss = criterion(outputs.to(device), labels.long().to(device))
-    #             loss.backward()
-    #             optimizer.step()
-    #             running_loss += loss.item()
-    #             #print(torch.sum(outputs.argmax(dim=1).to(device)==labels.to(device))/bimages.shape[0])
-
-    #         logger.info(f"Loss: {running_loss/len(train_dts):.4f}")
-    #         # print(outputs, labels)
-    #         torch.save(model.state_dict(), "drd_{}.pth".format(model_type))
-
-    # else:
-    #     logger.info("load from dir")
-    #     model = ResNet18(head_dim=emb_dim)
-    #     model.load_state_dict(
-    #         torch.load("drd_{}.pth".format(model_type))
-    #         )
-    model = model.to(device)
+    model = ARNIQA().encoder.to(device)
     
     if feat_ext_slice!=0:
         feat_ext = torch.nn.Sequential(
@@ -177,13 +139,18 @@ def load_drd(ddetector_dts: DataLoader,
     for param in feat_ext.parameters():
         param.requires_grad = False
 
+    x_ref = []
     for bim, _ in tqdm(ddetector_dts, desc="Drift fit"):
-        bim =  T.FiveCrop(size=360)(bim)
-        bim  = torch.cat(bim, dim=0)
+        # bim =  T.FiveCrop(size=bim.shape[-1]//2)(bim)
+        # bim  = torch.cat(bim, dim=0)
         bim = bim[torch.randperm(bim.shape[0])]
         inp = feat_ext(bim.to(device))
         inp = inp.reshape(bim.shape[0], -1)
-        ddetect.fit(inp)
+        
+        x_ref.append(inp)
+
+    x_ref = torch.cat(x_ref, dim=0)
+    ddetect.fit(x_ref)
 
     return feat_ext, ddetect
 
@@ -234,26 +201,29 @@ def compute_quality_score(model, img):
     return score
 
 if __name__ == "__main__":
+    help_string = '''usage python3 main.py 
+    [pipe_inspection, traffic_inspection, factory_inspection, assembly_line_extreme_inspection, assembly_line_inspection, kadid10k] 
+    [batch_size]
+    [seed]'''
+
+    dataset=sys.argv[1]
+    global_batch_size = int(sys.argv[2])
+    torch.manual_seed(sys.argv[3])
+
+    assert dataset in [
+        "traffic_inspection",
+        "pipe_inspection", 
+        "factory_inspection", 
+        "assembly_line_extreme_inspection", 
+        "assembly_line_inspection", 
+        "kadid10k"] and len(sys.argv)==4, help_string
     
-    dataset="traffic_inspection"
-    # dataset="pipe_inspection"
-    # dataset="factory_inspection"
-    # dataset="assembly_line_extreme_inspection"
-    # dataset="assembly_line_inspection"
-    # dataset="kadid10k"
-    global_batch_size = 16
     train, test, ddet = init_dataloaders(
         dataset=dataset, batch_size=global_batch_size)
 
     model_arniqa = load_arniqa_model().to(device)
 
-    model_drd, ddetect = load_drd(
-        ddetector_dts=ddet,
-        train_dts=train,
-        feat_ext_slice=0, 
-        num_epochs=10,
-        emb_dim=3
-    )
+    model_drd, ddetect = load_drd(ddetector_dts=ddet, feat_ext_slice=0)
      
     # ONLY TRAINING FOR THE MOMENT (TRAINING NEEDS CHANGES TOO)
     model_lstm = load_lstm_drift(train_dts=train)
@@ -270,7 +240,6 @@ if __name__ == "__main__":
     poor_quality_pred = []
     poor_quality_tar = []
 
-
     lstm_drift_pred = []
     lstm_drift_tar = []
 
@@ -284,15 +253,12 @@ if __name__ == "__main__":
             arniqa_outputs = compute_quality_score(
                 model_arniqa, bimages.to(device),
                 )
-            bim = T.FiveCrop(size=360)(bimages)
-            bim  = torch.cat(bim, dim=0)
-            bim = bim[torch.randperm(bim.shape[0])]
-            dd_in = model_drd(bim.to(device))
-            dd_in = dd_in.reshape(bim.shape[0], -1)
-            pv = ddetect.forward(dd_in).item()
-            if pv>0:
-                print("NO drift detected:",pv)
-                # input()
+            # bim = T.FiveCrop(size=bimages.shape[-1]//2)(bimages)
+            # bim  = torch.cat(bim, dim=0)
+            # bim = bim[torch.randperm(bim.shape[0])]
+            dd_in = model_drd(bimages.to(device))
+            dd_in = dd_in.reshape(bimages.shape[0], -1)
+            pv = ddetect.forward(dd_in)
  
             meaniq = arniqa_outputs.mean().item()
             lstm_labels = torch.where(labels>1, 1, 0)
@@ -306,15 +272,15 @@ if __name__ == "__main__":
             all_lstm_mean_values.append(lstm_mean.item())
 
             logger.info("---------")
-            logger.info(("drift p-val:",pv))
+            logger.info(("drift:",pv))
             logger.info(("mean_iq:", meaniq))
             logger.info(("lstm_mean:", lstm_mean.item()))
 
             # CALCULATE STATISTICS FOR DRIFT
-            if pv>0.05:
-                drift_pred.append(0)
-            else:
+            if pv>1:
                 drift_pred.append(1)
+            else:
+                drift_pred.append(0)
 
             ideal_labels = torch.tensor([1]*bimages.shape[0])
 
@@ -329,9 +295,9 @@ if __name__ == "__main__":
             else:
                 lstm_drift_pred.append(0)
 
-            lstm_labels_argmax = torch.argmax(lstm_labels, dim=1)
-            lstm_labels_01 = torch.where(labels>1, 1, 0)
-            if torch.eq(lstm_labels_argmax,lstm_labels_01).sum() > bimages.shape[0]//2:
+            # lstm_labels_argmax = torch.argmax(lstm_labels, dim=1)
+            # lstm_labels_01 = torch.where(labels>1, 1, 0)
+            if torch.eq(ideal_labels,labels).sum() < bimages.shape[0]//2:
                 lstm_drift_tar.append(1)
             else:
                 lstm_drift_tar.append(0)
@@ -373,7 +339,7 @@ plt.plot(all_drift_p_values)
 plt.axvline(len(test)/2, linestyle="--", color="grey")
 plt.axhline(0.05, linestyle="--", color="red")
 x  = [ i for i, _ in enumerate(all_drift_p_values)]
-plt.fill_between(x, 0, 0.05, alpha=0.3, color="red")
+plt.fill_between(x, 1, 1.5, alpha=0.3, color="red")
 plt.ylabel("drift p-value")
 plt.grid()
 
@@ -397,77 +363,3 @@ plt.xlabel("# of batches")
 plt.grid()
 
 plt.savefig("current_results.jpg")
-
-# with open('drifts.csv', 'w', newline='') as csvfile:
-#     drift_values = csv.writer(csvfile, delimiter=' ',
-#                             quotechar='|', quoting=csv.QUOTE_MINIMAL)
-#     for res, step in zip(all_drift_p_values, im_passed):
-#         drift_values.writerow([step, res])
-
-# with open('iqs.csv', 'w', newline='') as csvfile:
-#     iqa_values = csv.writer(csvfile, delimiter=' ',
-#                             quotechar='|', quoting=csv.QUOTE_MINIMAL)
-#     for res, step in zip(all_iqscore_values, im_passed):
-#         iqa_values.writerow([step, res])
-
-# with open('class_choice.csv', 'w', newline='') as csvfile:
-#     class_ans = csv.writer(csvfile,
-#                             quotechar='|', quoting=csv.QUOTE_MINIMAL)
-#     for cl in class_answers:
-#         class_ans.writerow([cl])
-
-# def load_drd(train_dts: DataLoader, 
-#     ddetector_dts: DataLoader,
-#     model_type: str = "resnet50",  
-#     num_epochs: int = 100, 
-#     detector: str = "mmd", 
-#     dataset: str = "kadid10k", 
-#     feat_ext_slice: int = -2,
-#     emb_dim: int = 128,
-#     dd_type: str = "mmd"):
-
-#     if not os.path.exists("drd_{}_{}.pth".format(model_type, dataset)):
-#         model = ResNet(
-#             embedding_dim=emb_dim, model=model_type, use_norm=False).to(device)
-#         ddetect = drift_detector(detector=detector)
-#         criterion = nn.CrossEntropyLoss()
-#         optimizer = optim.Adam(model.parameters(), lr=0.001)
-#         for _ in tqdm(range(num_epochs), desc="Epoch", position=0):
-#             model.train()
-#             running_loss = 0.0
-#             for _, images, labels in tqdm(train_dts,desc="#b",position=1,leave=False):
-#                 optimizer.zero_grad()
-#                 _, outputs = model(images.to(device))
-#                 loss = criterion(outputs.to(device), labels.to(device))
-#                 loss.backward()
-#                 optimizer.step()
-#                 running_loss += loss.item()
-#             logger.info(f"Loss: {running_loss/len(train_dts):.4f}")
-
-#         torch.save(model.state_dict(), "drd_{}_{}.pth".format(model_type, dataset))
-
-#     else:
-#         logger.info("load from dir")
-#         model = ResNet(
-#             embedding_dim=emb_dim, model=model_type, 
-#             use_norm=False).to(device)
-#         model.load_state_dict(
-#             torch.load("drd_{}_{}.pth".format(model_type, dataset))
-#             )
-#         model = model.to(device)
-
-#     ddetect = drift_detector(detector=dd_type)
-
-#     if feat_ext_slice!=0:
-#         feat_ext = torch.nn.Sequential(
-#             *(list(model.model.children())[:feat_ext_slice])).eval().to(device)
-
-#     else:
-#         feat_ext = torch.nn.Sequential(
-#             *(list(model.model.children())[:])).eval().to(device)
-        
-#     for _, im, _ in tqdm(ddetector_dts, desc="Drift fit"):  
-#         inp = feat_ext(im.to(device)).reshape(im.shape[0], -1)
-#         ddetect.fit(inp)
-
-#     return feat_ext, ddetect
