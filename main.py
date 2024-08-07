@@ -340,7 +340,7 @@ plt.axvline(len(test)/2, linestyle="--", color="grey")
 plt.axhline(0.05, linestyle="--", color="red")
 x  = [ i for i, _ in enumerate(all_drift_p_values)]
 plt.fill_between(x, 1, 1.5, alpha=0.3, color="red")
-plt.ylabel("drift p-value")
+plt.ylabel("drift")
 plt.grid()
 
 plt.subplot(3, 1, 2)
