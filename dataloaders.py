@@ -29,16 +29,22 @@ np.random.seed(seed=int(sys.argv[3]))
 distortion_transforms = { i:getattr(dstr_all, d) for i,d in enumerate(dstr)}
 
 class VideoFootage(Dataset):
-    def __init__(self, image_paths: str, distort: str = ""):
+    def __init__(self, image_paths: str, distort: bool = False, tape: list = [], window: int = 50, num_windows: int = 3):
 
         self.image_paths = image_paths
         self.transforms = distortion_transforms
+        self.window = window
         self.distort = distort
-
-
-        self.last_half = self.__len__()//2
-        self.end = self.__len__()
-        self.random_dist = np.random.choice([i for i in range(self.last_half, self.end)], self.last_half)
+        self.num_windows = num_windows
+        if self.distort:
+            if tape!=[]:
+                self.tape = tape
+            else:
+                all_idx = [ i for i in range(self.__len__())]
+                random_window_start = np.random.choice([ i for i in range(self.__len__()-self.window)], self.num_windows)
+                self.tape = []
+                for win_st in random_window_start:
+                    self.tape.extend(all_idx[win_st:win_st+self.window])
 
     def __len__(self):
         return len(self.image_paths)
@@ -49,27 +55,24 @@ class VideoFootage(Dataset):
 
         preproc = T.Compose([
             # T.CenterCrop(size=min(image.size[1:])),
-            T.CenterCrop(size=384),
+            T.CenterCrop(size=500),
             T.ToImage(), T.ToDtype(torch.float32, scale=True),
             T.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
         ])
 
         image = preproc(image)
-        # if self.distort and idx in self.random_dist:
-        if idx > self.last_half and self.distort=="last":
-            image = self.transforms[0](image)
-            label = torch.tensor(2)
-        elif self.distort=="rand":
-            if np.random.choice([0,1,2],1)[0]==0:
-                image = self.transforms[1](image)
-                label = torch.tensor(0)
-            if np.random.choice([0,1,2],1)[0]==1:
-                image = self.transforms[0](image)
-                label = torch.tensor(2)
+        if self.distort:
+            if idx in self.tape:
+                dist_choice = np.random.choice([-1,0,1],1)[0]
+                if dist_choice==-1:
+                    label = torch.tensor(0)
+                else:
+                    image = self.transforms[dist_choice](image)
+                    label = torch.tensor(dist_choice+1)
             else:
-                label = torch.tensor(1)
+                label = torch.tensor(0)
         else:
-            label = torch.tensor(1)
+            label = torch.tensor(0)
 
         # image = T.RandomRotation([-10,10])(image)
         # image = T.ColorJitter(brightness=(0.7, 1.4))(image)

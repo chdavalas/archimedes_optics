@@ -1,13 +1,9 @@
-
 import urllib.request
 import os
 import torch
 import zipfile
-from pathlib import Path
 from sklearn.model_selection import train_test_split
 from dataloaders import kadid10k, VideoFootage
-from losses import nt_xent_loss
-from torch.utils.data import Dataset
 from torch.utils.data import DataLoader
 import torchvision.transforms.v2 as T
 from drift_detector import drift_detector
@@ -15,16 +11,11 @@ from tqdm import tqdm
 import torch.nn as nn
 import torch.optim as optim
 import logging
-import numpy as np
-from torchvision.models import resnet18
 from sklearn.metrics import precision_score, recall_score, f1_score
 import sys
-from models_hub import ResNet, ARNIQA, LSTM_drift, Net, ResNet18
+from models_hub import ARNIQA, LSTM_drift
 import csv
-import matplotlib.pyplot as plt
-from dotmap import DotMap
 from copy import deepcopy
-from random import shuffle
 
 logger = logging.getLogger(__name__)
 
@@ -93,8 +84,8 @@ def init_dataloaders(dataset="kadid10k", batch_size=32):
         dd_paths, test_paths = train_test_split(
             image_paths, test_size=0.9, random_state=42, shuffle=False)
 
-        train_dataset = VideoFootage(dd_paths, distort="rand")
-        test_dataset = VideoFootage(test_paths, distort="last")
+        train_dataset = VideoFootage(dd_paths)
+        test_dataset = VideoFootage(test_paths, distort=True, window=100, num_windows=2)
         drift_dataset = VideoFootage(dd_paths)
         logger.info(train_dataset.__len__())
         logger.info(test_dataset.__len__())
@@ -217,7 +208,7 @@ if __name__ == "__main__":
     model_arniqa = load_arniqa_model().to(device)
 
     # LOAD ARNIQA+DRIFT DETECTOR
-    model_drd, ddetect = load_drd(ddetector_dts=ddet, feat_ext_slice=0)
+    model_drd, ddetect = load_drd(ddetector_dts=ddet)
      
     # LOAD ARNIQA+ KADID10KLSTM
     model_lstm = load_lstm_drift(train_dts=train)
@@ -272,7 +263,7 @@ if __name__ == "__main__":
             else:
                 drift_pred.append(0)
 
-            ideal_labels = torch.tensor([1]*bimages.shape[0])
+            ideal_labels = torch.tensor([0]*bimages.shape[0])
 
             if torch.eq(ideal_labels,labels).sum() < bimages.shape[0]//2:
                 drift_tar.append(1)
@@ -321,35 +312,42 @@ test_dts_with_status_.write("Recall:{}".format(recall_score(lstm_drift_tar, lstm
 test_dts_with_status_.write("F1:{}".format(f1_score(lstm_drift_tar, lstm_drift_pred)))
 test_dts_with_status_.write("--------------------------------------------------")
 
+import csv
 
+data = [
+    {
+        'dataset':dataset, 
+        'method': 'mmd-drift', 
+        'precision':precision_score(drift_tar, drift_pred), 
+        'recall': recall_score(drift_tar, drift_pred), 
+        'f1':f1_score(drift_tar, drift_pred)
+    },
+    {
+        'dataset':dataset, 
+        'method': 'arniqa-mean', 
+        'precision':precision_score(poor_quality_tar, poor_quality_pred), 
+        'recall': recall_score(poor_quality_tar, poor_quality_pred), 
+        'f1':f1_score(poor_quality_tar, poor_quality_pred)
+    },
+        {
+        'dataset':dataset, 
+        'method': 'lstm-drift', 
+        'precision':precision_score(lstm_drift_tar, lstm_drift_pred), 
+        'recall': recall_score(lstm_drift_tar, lstm_drift_pred), 
+        'f1':f1_score(lstm_drift_tar, lstm_drift_pred)
+    },
 
-plt.subplot(3, 1, 1)
-plt.title(dataset)
-plt.plot(all_drift_p_values)
-plt.axvline(len(test)/2, linestyle="--", color="grey")
-plt.axhline(0.05, linestyle="--", color="red")
-x  = [ i for i, _ in enumerate(all_drift_p_values)]
-plt.fill_between(x, 0, 0.05, alpha=0.3, color="red")
-plt.ylabel("drift")
-plt.grid()
+]
 
-plt.subplot(3, 1, 2)
-plt.axvline(len(test)/2, linestyle="--", color="grey")
-plt.axhline(0.5, linestyle="--", color="red")
-x  = [ i for i, _ in enumerate(all_drift_p_values)]
-plt.fill_between(x, 0, 0.5, alpha=0.3, color="red")
-plt.plot(mean_iqscore_values, color="purple")
-plt.ylabel("mean image\nquality score")
-plt.grid()
+if os.path.exists('stats.csv'):
+    with open('stats.csv', 'a', newline='') as csvfile:
+        header_name = ['dataset', 'method', 'precision', 'recall', 'f1']
+        writer = csv.DictWriter(csvfile, fieldnames=header_name)
+        writer.writerows(data)
+else:
+    with open('stats.csv', 'w', newline='') as csvfile:
+        header_name = ['dataset', 'method', 'precision', 'recall', 'f1']
+        writer = csv.DictWriter(csvfile, fieldnames=header_name)
+        writer.writeheader()
+        writer.writerows(data)
 
-plt.subplot(3, 1, 3)
-plt.axvline(len(test)/2, linestyle="--", color="grey")
-plt.axhline(0.5, linestyle="--", color="red")
-x  = [ i for i, _ in enumerate(all_drift_p_values)]
-plt.fill_between(x, 0.5, 1, alpha=0.3, color="red")
-plt.plot(all_lstm_mean_values, color="blue")
-plt.ylabel("drift detected\nlstm score")
-plt.xlabel("# of batches")
-plt.grid()
-
-plt.savefig("current_results.jpg")
