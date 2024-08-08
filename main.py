@@ -85,7 +85,7 @@ def init_dataloaders(dataset="kadid10k", batch_size=32):
             image_paths, test_size=0.9, random_state=42, shuffle=False)
 
         train_dataset = VideoFootage(dd_paths)
-        test_dataset = VideoFootage(test_paths, distort=True, window=100, num_windows=2)
+        test_dataset = VideoFootage(test_paths, distort=True, window=100, num_windows=1)
         drift_dataset = VideoFootage(dd_paths)
         logger.info(train_dataset.__len__())
         logger.info(test_dataset.__len__())

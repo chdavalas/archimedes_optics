@@ -46,6 +46,7 @@ class VideoFootage(Dataset):
                 for win_st in random_window_start:
                     self.tape.extend(all_idx[win_st:win_st+self.window])
 
+            print(self.tape)
     def __len__(self):
         return len(self.image_paths)
 
