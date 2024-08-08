@@ -54,7 +54,6 @@ class Net(nn.Module):
         x = self.pool(F.relu(self.conv2(x)))
         x = self.pool(F.relu(self.conv3(x)))
         x = torch.flatten(x, 1) # flatten all dimensions except batch
-        # print(x.shape)
         x = F.relu(self.fc1(x))
         x = F.relu(self.fc2(x))
         x = self.fc3(x)
@@ -76,9 +75,7 @@ class SimpleClassifier(nn.Module):
         x = self.pool(self.relu(self.conv1(x)))
         x = self.pool(self.relu(self.conv2(x)))
         x = self.pool(self.relu(self.conv3(x)))
-        #print(x.shape)
         x = x.view(-1, 64 * 64* 8)
-        #print(x.shape)
         x = self.relu(self.fc1(x))
         x = self.fc2(x)
         return x

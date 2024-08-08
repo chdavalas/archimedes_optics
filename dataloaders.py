@@ -32,9 +32,6 @@ class VideoFootage(Dataset):
     def __init__(self, image_paths: str, distort: str = ""):
 
         self.image_paths = image_paths
-        # self.display_im = display_im
-
-        # self.labels = distortion_labels
         self.transforms = distortion_transforms
         self.distort = distort
 
@@ -51,7 +48,8 @@ class VideoFootage(Dataset):
         image = Image.open(self.image_paths[idx])
 
         preproc = T.Compose([
-            T.CenterCrop(size=min(image.size[1:])),
+            # T.CenterCrop(size=min(image.size[1:])),
+            T.CenterCrop(size=384),
             T.ToImage(), T.ToDtype(torch.float32, scale=True),
             T.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
         ])
@@ -74,13 +72,12 @@ class VideoFootage(Dataset):
             label = torch.tensor(1)
 
         # image = T.RandomRotation([-10,10])(image)
-
+        # image = T.ColorJitter(brightness=(0.7, 1.4))(image)
         return image, label
 
 class kadid10k(Dataset):
     def __init__(self, image_paths: str):
         self.image_paths = image_paths
-
 
     def __len__(self):
         return len(self.image_paths)

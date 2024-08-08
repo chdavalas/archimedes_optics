@@ -21,7 +21,6 @@ while(cap.isOpened()):
     ret, frame = cap.read()
 
     if(ret == True):
-        print("frame_{}".format(frame_idx))
         name = 'frame_{}_{}.jpg'.format(folder_name, frame_idx)
         cv2.imwrite(os.path.join(path_to_save, name), frame)
         frame_idx+=1

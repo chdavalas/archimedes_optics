@@ -4,6 +4,15 @@ import torch.nn as nn
 from alibi_detect.cd import MMDDrift
 from numpy import concatenate
 import torchvision.transforms.v2 as T
+import logging
+
+logger = logging.getLogger(__name__)
+
+logging.basicConfig(
+    filename='output.log', 
+    filemode='w', 
+    format='%(levelname)s:%(message)s',
+    level=logging.INFO)
 
 class drift_detector(nn.Module):
     def __init__(self, detector="mmd") -> None:
@@ -19,5 +28,5 @@ class drift_detector(nn.Module):
         return self.detector
 
     def forward(self, y_pred):
-        print(self.detector.predict(y_pred.cpu().numpy())["data"])
-        return self.detector.predict(y_pred.cpu().numpy())["data"]["distance"]
+        logger.info(self.detector.predict(y_pred.cpu().numpy())["data"])
+        return self.detector.predict(y_pred.cpu().numpy())["data"]["p_val"]

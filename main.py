@@ -80,23 +80,25 @@ def init_dataloaders(dataset="kadid10k", batch_size=32):
     else:
         # Example image paths and labels (we take the images sorted very fast)
         im_count = len(os.listdir(dataset))
+        file_format = "jpg"
+        if dataset == "interlaken_inspection":
+            file_format = "png"
+
         image_paths = [
-            dataset+'/frame_'+dataset+'_{}.jpg'.format(i) for i in range(im_count)]
+            dataset+'/frame_'+dataset+'_{}.{}'.format(i, file_format) for i in range(im_count)]
         
+        # image_paths = image_paths[:300]
 
         # Split dataset
         dd_paths, test_paths = train_test_split(
-            image_paths, test_size=0.95, random_state=42, shuffle=False)
-
-        # _, dd_paths = train_test_split(dd_paths, test_size=batch_size*2, random_state=42, shuffle=True)
-        shuffle(dd_paths)
+            image_paths, test_size=0.9, random_state=42, shuffle=False)
 
         train_dataset = VideoFootage(dd_paths, distort="rand")
         test_dataset = VideoFootage(test_paths, distort="last")
         drift_dataset = VideoFootage(dd_paths)
-        print(train_dataset.__len__())
-        print(test_dataset.__len__())
-        print(drift_dataset.__len__())
+        logger.info(train_dataset.__len__())
+        logger.info(test_dataset.__len__())
+        logger.info(drift_dataset.__len__())
 
 
     train_loader = DataLoader(
@@ -104,7 +106,7 @@ def init_dataloaders(dataset="kadid10k", batch_size=32):
     test_loader = DataLoader(
         test_dataset, batch_size=batch_size, shuffle=False, drop_last=True)
     ddetector_loader = DataLoader(
-        drift_dataset, batch_size=batch_size, shuffle=True, drop_last=True)
+        drift_dataset, batch_size=batch_size, shuffle=False, drop_last=True)
 
     return train_loader, test_loader, ddetector_loader
 
@@ -120,29 +122,21 @@ def load_arniqa_model(regr_dt: str = "kadid10k"):
 
     return model.eval().to(device)
 
-def load_drd(ddetector_dts: DataLoader, 
-             dd_type:  str = "mmd", 
-             feat_ext_slice: int = 0):
-
+def load_drd(ddetector_dts: DataLoader, dd_type:  str = "mmd"):
 
     ddetect = drift_detector(detector=dd_type)
     model = ARNIQA().encoder.to(device)
     
     feat_ext = torch.nn.Sequential(deepcopy(model)).eval().to(device)
     
-    
     for param in feat_ext.parameters():
         param.requires_grad = False
 
     x_ref = []
     for bim, _ in tqdm(ddetector_dts, desc="Drift fit"):
-        # bim =  T.FiveCrop(size=bim.shape[-1]//2)(bim)
-        # bim  = torch.cat(bim, dim=0)
-        # bim = bim[torch.randperm(bim.shape[0])]
         _, inp = feat_ext(bim.to(device))
         
         inp = inp.argmax(dim=1).unsqueeze(1).float()
-        print(inp.permute(1,0))
         x_ref.append(inp)
 
     x_ref = torch.cat(x_ref, dim=0)
@@ -190,15 +184,15 @@ def load_lstm_drift(train_dts: DataLoader, num_epochs: int = 5, out_size: int = 
     return model.eval()
 
 def compute_quality_score(model, img):
-    """Compute the quality score of the image."""
     with torch.no_grad(), torch.cuda.amp.autocast():
         score = model(img, return_embedding=False, scale_score=True)
-
     return score
 
 if __name__ == "__main__":
     help_string = '''usage python3 main.py 
-    [pipe_inspection, traffic_inspection, factory_inspection, assembly_line_extreme_inspection, dashcam_inspection, assembly_line_inspection, kadid10k] 
+    [pipe_inspection, traffic_inspection, factory_inspection, 
+    assembly_line_extreme_inspection, dashcam_inspection, assembly_line_inspection, 
+    kadid10k, interlaken_inspection] 
     [batch_size]
     [seed]'''
 
@@ -212,17 +206,20 @@ if __name__ == "__main__":
         "factory_inspection", 
         "assembly_line_extreme_inspection", 
         "assembly_line_inspection", 
-        "dashcam_inspection",
+        "dashcam_inspection", "interlaken_inspection",
         "kadid10k"] and len(sys.argv)==4, help_string
     
+    # INIT DATASETS
     train, test, ddet = init_dataloaders(
         dataset=dataset, batch_size=global_batch_size)
 
+    # LOAD ARNIQA
     model_arniqa = load_arniqa_model().to(device)
 
+    # LOAD ARNIQA+DRIFT DETECTOR
     model_drd, ddetect = load_drd(ddetector_dts=ddet, feat_ext_slice=0)
      
-    # ONLY TRAINING FOR THE MOMENT (TRAINING NEEDS CHANGES TOO)
+    # LOAD ARNIQA+ KADID10KLSTM
     model_lstm = load_lstm_drift(train_dts=train)
 
     model_drd.to(device)
@@ -240,22 +237,18 @@ if __name__ == "__main__":
     lstm_drift_pred = []
     lstm_drift_tar = []
 
-
+    test_dts_with_status_ = tqdm(test, desc="Test", position=0)
     with torch.no_grad():
         im_passed = []; idx=0
-        for bimages, labels in tqdm(test, desc="Test", position=0):
+        for bimages, labels in test_dts_with_status_:
             
             lstm_outputs = model_lstm(bimages.to(device))
             
             arniqa_outputs = compute_quality_score(
                 model_arniqa, bimages.to(device),
                 )
-            # bim = T.FiveCrop(size=bimages.shape[-1]//2)(bimages)
-            # bim  = torch.cat(bim, dim=0)
-            # bim = bim[torch.randperm(bim.shape[0])]
             _, dd_in = model_drd(bimages.to(device))
             dd_in = dd_in.argmax(dim=1).unsqueeze(1).float()
-            print(dd_in.permute(1,0))
             pv = ddetect.forward(dd_in)
  
             meaniq = arniqa_outputs.mean().item()
@@ -263,19 +256,18 @@ if __name__ == "__main__":
             lstm_labels = torch.nn.functional.one_hot(lstm_labels.long(), 2)
             lstm_mean = torch.argmax(lstm_outputs, dim=1).float().mean()
 
-            # print(dd_in, arniqa_outputs, dd_in.argmax(dim=1), labels)
-
             all_drift_p_values.append(pv)
             mean_iqscore_values.append(meaniq)
             all_lstm_mean_values.append(lstm_mean.item())
 
-            logger.info("---------")
-            logger.info(("drift:",pv))
-            logger.info(("mean_iq:", meaniq))
-            logger.info(("lstm_mean:", lstm_mean.item()))
+            test_dts_with_status_.write("---------")
+            test_dts_with_status_.write("drift p-val:{}".format(pv))
+            test_dts_with_status_.write("mean_iq:{}".format(meaniq))
+            test_dts_with_status_.write("lstm_mean:{}".format(lstm_mean.item()))
+            test_dts_with_status_.write("---------")
 
             # CALCULATE STATISTICS FOR DRIFT
-            if pv>1:
+            if pv<0.05:
                 drift_pred.append(1)
             else:
                 drift_pred.append(0)
@@ -302,7 +294,7 @@ if __name__ == "__main__":
 
             # CALCULATE STATISTICS FOR IQA
             for ao, lbl in zip(arniqa_outputs, labels):
-                if ao.item()>=0.5:
+                if ao.item()>0.5:
                     poor_quality_pred.append(0)
                 else:
                     poor_quality_pred.append(1)
@@ -312,22 +304,22 @@ if __name__ == "__main__":
                 else:
                     poor_quality_tar.append(1)
 
-logger.info("--------------------------------------------------")
-logger.info("Drift stats")
-logger.info("Precision:%f",precision_score(drift_tar, drift_pred))
-logger.info("Recall:%f",recall_score(drift_tar, drift_pred))
-logger.info("F1:%f",f1_score(drift_tar, drift_pred))
-logger.info("--------------------------------------------------")
-logger.info("IQA stats")
-logger.info("Precision:%f",precision_score(poor_quality_tar, poor_quality_pred))
-logger.info("Recall:%f",recall_score(poor_quality_tar, poor_quality_pred))
-logger.info("F1:%f",f1_score(poor_quality_tar, poor_quality_pred))
-logger.info("--------------------------------------------------")
-logger.info("LSTM stats")
-logger.info("Precision:%f",precision_score(lstm_drift_tar, lstm_drift_pred))
-logger.info("Recall:%f",recall_score(lstm_drift_tar, lstm_drift_pred))
-logger.info("F1:%f",f1_score(lstm_drift_tar, lstm_drift_pred))
-logger.info("--------------------------------------------------")
+test_dts_with_status_.write("--------------------------------------------------")
+test_dts_with_status_.write("Drift stats")
+test_dts_with_status_.write("Precision:{}".format(precision_score(drift_tar, drift_pred)))
+test_dts_with_status_.write("Recall:{}".format(recall_score(drift_tar, drift_pred)))
+test_dts_with_status_.write("F1:{}".format(f1_score(drift_tar, drift_pred)))
+test_dts_with_status_.write("--------------------------------------------------")
+test_dts_with_status_.write("IQA stats")
+test_dts_with_status_.write("Precision:{}".format(precision_score(poor_quality_tar, poor_quality_pred)))
+test_dts_with_status_.write("Recall:{}".format(recall_score(poor_quality_tar, poor_quality_pred)))
+test_dts_with_status_.write("F1:{}".format(f1_score(poor_quality_tar, poor_quality_pred)))
+test_dts_with_status_.write("--------------------------------------------------")
+test_dts_with_status_.write("LSTM stats")
+test_dts_with_status_.write("Precision:{}".format(precision_score(lstm_drift_tar, lstm_drift_pred)))
+test_dts_with_status_.write("Recall:{}".format(recall_score(lstm_drift_tar, lstm_drift_pred)))
+test_dts_with_status_.write("F1:{}".format(f1_score(lstm_drift_tar, lstm_drift_pred)))
+test_dts_with_status_.write("--------------------------------------------------")
 
 
 
@@ -337,7 +329,7 @@ plt.plot(all_drift_p_values)
 plt.axvline(len(test)/2, linestyle="--", color="grey")
 plt.axhline(0.05, linestyle="--", color="red")
 x  = [ i for i, _ in enumerate(all_drift_p_values)]
-plt.fill_between(x, 1, 1.5, alpha=0.3, color="red")
+plt.fill_between(x, 0, 0.05, alpha=0.3, color="red")
 plt.ylabel("drift")
 plt.grid()
 
