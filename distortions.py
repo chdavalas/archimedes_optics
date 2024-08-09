@@ -174,7 +174,7 @@ def jpeg(x: torch.Tensor, quality: int) -> torch.Tensor:
     return y
 
 
-def white_noise(x: torch.Tensor, var: float, clip: bool = True, rounds: bool = False) -> torch.Tensor:
+def white_noise(x: torch.Tensor, var: float = 125.5, clip: bool = True, rounds: bool = False) -> torch.Tensor:
     noise = torch.randn(*x.size(), dtype=x.dtype) * math.sqrt(var)
 
     y = x + noise
@@ -188,7 +188,7 @@ def white_noise(x: torch.Tensor, var: float, clip: bool = True, rounds: bool = F
     return y
 
 
-def white_noise_cc(x: torch.Tensor, var: float, clip: bool = True, rounds: bool = False) -> torch.Tensor:
+def white_noise_cc(x: torch.Tensor, var: float = 125.5, clip: bool = True, rounds: bool = False) -> torch.Tensor:
     noise = torch.randn(*x.size(), dtype=x.dtype) * math.sqrt(var)
 
     ycbcr = kornia.color.rgb_to_ycbcr(x)
@@ -206,7 +206,7 @@ def white_noise_cc(x: torch.Tensor, var: float, clip: bool = True, rounds: bool 
     return y
 
 
-def impulse_noise(x: torch.Tensor, d: float, s_vs_p: float = 0.5) -> torch.Tensor:
+def impulse_noise(x: torch.Tensor, d: float = 0.5, s_vs_p: float = 0.5) -> torch.Tensor:
     num_sp = int(d * x.shape[0] * x.shape[1] * x.shape[2])
 
     coords = np.concatenate((np.random.randint(0, 3, (num_sp, 1)),
@@ -224,14 +224,14 @@ def impulse_noise(x: torch.Tensor, d: float, s_vs_p: float = 0.5) -> torch.Tenso
     return x
 
 
-def multiplicative_noise(x: torch.Tensor, var: float) -> torch.Tensor:
+def multiplicative_noise(x: torch.Tensor, var: float = 7.3) -> torch.Tensor:
     noise = torch.randn(*x.size(), dtype=x.dtype) * math.sqrt(var)
     y = x + x * noise
     y = torch.clip(y, 0, 1)
     return y
 
 
-def brighten(x: torch.Tensor, amount: float) -> torch.Tensor:
+def brighten(x: torch.Tensor, amount: float = 1.5) -> torch.Tensor:
     x = x[[2, 1, 0]]
     lab = kornia.color.rgb_to_lab(x)
 
@@ -248,7 +248,7 @@ def brighten(x: torch.Tensor, amount: float) -> torch.Tensor:
     return y[[2, 1, 0]]
 
 
-def darken(x: torch.Tensor, amount: float, dolab: bool = False) -> torch.Tensor:
+def darken(x: torch.Tensor, amount: float = 1.5 , dolab: bool = False) -> torch.Tensor:
     x = x[[2, 1, 0], :, :]
     lab = kornia.color.rgb_to_lab(x)
     if dolab:
@@ -265,7 +265,7 @@ def darken(x: torch.Tensor, amount: float, dolab: bool = False) -> torch.Tensor:
     return y[[2, 1, 0]]
 
 
-def mean_shift(x: torch.Tensor, amount: float) -> torch.Tensor:
+def mean_shift(x: torch.Tensor, amount: float = 0.5) -> torch.Tensor:
     x = x[[2, 1, 0], :, :]
 
     y = torch.clamp(x + amount, 0, 1)
@@ -277,7 +277,7 @@ def jitter(x: torch.Tensor, amount: float) -> torch.Tensor:
     return y
 
 
-def non_eccentricity_patch(x: torch.Tensor, pnum: int) -> torch.Tensor:
+def non_eccentricity_patch(x: torch.Tensor, pnum: int = 5) -> torch.Tensor:
     y = x
     patch_size = [16, 16]
     radius = 16
@@ -300,7 +300,7 @@ def non_eccentricity_patch(x: torch.Tensor, pnum: int) -> torch.Tensor:
     return y
 
 
-def pixelate(x: torch.Tensor, strength: float) -> torch.Tensor:
+def pixelate(x: torch.Tensor, strength: float = 1.5) -> torch.Tensor:
     z = 0.95 - strength ** 0.6
     c, h, w = x.shape
 
@@ -310,7 +310,7 @@ def pixelate(x: torch.Tensor, strength: float) -> torch.Tensor:
     return y
 
 
-def quantization(x: torch.Tensor, levels: int) -> torch.Tensor:
+def quantization(x: torch.Tensor, levels: int = 5) -> torch.Tensor:
     image = kornia.color.rgb_to_grayscale(x) * 255
     image = image.cpu().numpy()
     num_classes = levels
@@ -330,7 +330,7 @@ def quantization(x: torch.Tensor, levels: int) -> torch.Tensor:
     return image
 
 
-def color_block(x: torch.Tensor, pnum: int) -> torch.Tensor:
+def color_block(x: torch.Tensor, pnum: int = 5) -> torch.Tensor:
     patch_size = [32, 32]
 
     c, w, h = x.shape
@@ -352,7 +352,7 @@ def color_block(x: torch.Tensor, pnum: int) -> torch.Tensor:
     return y
 
 
-def high_sharpen(x: torch.Tensor, amount: int, radius: int = 3) -> torch.Tensor:
+def high_sharpen(x: torch.Tensor, amount: int = 5, radius: int = 3) -> torch.Tensor:
     x = x[[2, 1, 0], ...]
     lab = kornia.color.rgb_to_lab(x)
     l = lab[0:1, ...].unsqueeze(0)
@@ -381,12 +381,12 @@ def high_sharpen(x: torch.Tensor, amount: int, radius: int = 3) -> torch.Tensor:
     return y
 
 
-def linear_contrast_change(x: torch.Tensor, amount: float) -> torch.Tensor:
+def linear_contrast_change(x: torch.Tensor, amount: float = 0.5) -> torch.Tensor:
     y = curves(x, [0.25 - amount / 4, 0.75 + amount / 4])
     return y
 
 
-def non_linear_contrast_change(x: torch.Tensor, output_offset_value: float, output_central_value: float = 0.5,
+def non_linear_contrast_change(x: torch.Tensor, output_offset_value: float =0.5, output_central_value: float = 0.5,
                                input_offset_value: float = 0.5, input_central_value: float = 0.5) -> torch.Tensor:
     low_in = input_central_value - input_offset_value
     high_in = input_central_value + input_offset_value

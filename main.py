@@ -1,9 +1,7 @@
-import urllib.request
 import os
 import torch
-import zipfile
 from sklearn.model_selection import train_test_split
-from dataloaders import kadid10k, VideoFootage
+from dataloaders import VideoFootage
 from torch.utils.data import DataLoader
 import torchvision.transforms.v2 as T
 from drift_detector import drift_detector
@@ -27,69 +25,67 @@ logging.basicConfig(
 
 device = torch.device("cuda") if torch.cuda.is_available() else "cpu"
 
-def init_dataloaders(dataset="kadid10k", batch_size=32):
+def init_dataloaders(dataset, batch_size=32):
 
     # Create datasets and loaders
-    if dataset == "kadid10k":
-        url = "https://datasets.vqa.mmsp-kn.de/archives/kadid10k.zip"
-        file_name = "kadid10k.zip"
+    # url = "https://datasets.vqa.mmsp-kn.de/archives/kadid10k.zip"
+    # file_name = "kadid10k.zip"
 
-        if not os.path.exists("kadid10k"):
-            logger.info("Downloading data ...")
-            urllib.request.urlretrieve(url, file_name)
-            with zipfile.ZipFile(file_name, 'r') as zip_ref:
-                logger.info("Extracting data ...")
-                zip_ref.extractall('.')
-        
+    # if not os.path.exists("kadid10k"):
+    #     logger.info("Downloading data ...")
+    #     urllib.request.urlretrieve(url, file_name)
+    #     with zipfile.ZipFile(file_name, 'r') as zip_ref:
+    #         logger.info("Extracting data ...")
+    #         zip_ref.extractall('.')
+    
 
-        alphanumeric  = ["0{}".format(i) for i in range(1,10)]
-        alphanumeric += ["{}".format(i) for i in range(10,82)]
+    # alphanumeric  = ["0{}".format(i) for i in range(1,10)]
+    # alphanumeric += ["{}".format(i) for i in range(10,82)]
 
-        # Example image paths and labels
-        image_paths = [
-            'kadid10k/images/I'+i+'_'+j+'_'+k+'.png'
-            for k in [alphanumeric[0]]+[alphanumeric[4]]
-            for i in alphanumeric
-            for j in alphanumeric[:25]
-        ]
+    # # Example image paths and labels
+    # image_paths = [
+    #     'kadid10k/images/I'+i+'_'+j+'_'+k+'.png'
+    #     for k in [alphanumeric[0]]+[alphanumeric[4]]
+    #     for i in alphanumeric
+    #     for j in alphanumeric[:25]
+    # ]
 
 
-        pristine_images = ['kadid10k/images/I'+i+'.png' for i in alphanumeric]
+    # pristine_images = ['kadid10k/images/I'+i+'.png' for i in alphanumeric]
 
-        # Split dataset
-        train_paths, test_paths = train_test_split(
-            image_paths, test_size=0.5, random_state=42, shuffle=True)
-        
-        test_paths = sorted(test_paths, key=lambda x: x[::-1])
+    # # Split dataset
+    # train_paths, test_paths = train_test_split(
+    #     image_paths, test_size=0.5, random_state=42, shuffle=True)
+    
+    # test_paths = sorted(test_paths, key=lambda x: x[::-1])
 
-        train_dataset = kadid10k(train_paths)
-        test_dataset = kadid10k(test_paths)
+    # train_dataset = kadid10k(train_paths)
+    # test_dataset = kadid10k(test_paths)
 
-        # held-out from training+testing
-        drift_dataset = kadid10k(pristine_images)
+    # # held-out from training+testing
+    # drift_dataset = kadid10k(pristine_images)
 
-    else:
-        # Example image paths and labels (we take the images sorted very fast)
-        im_count = len(os.listdir(dataset))
-        file_format = "jpg"
-        if dataset == "interlaken_inspection":
-            file_format = "png"
+    # Example image paths and labels (we take the images sorted very fast)
+    im_count = len(os.listdir(dataset))
+    file_format = "jpg"
+    if dataset == "interlaken_inspection":
+        file_format = "png"
 
-        image_paths = [
-            dataset+'/frame_'+dataset+'_{}.{}'.format(i, file_format) for i in range(im_count)]
-        
-        # image_paths = image_paths[:300]
+    image_paths = [
+        dataset+'/frame_'+dataset+'_{}.{}'.format(i, file_format) for i in range(im_count)]
+    
+    # image_paths = image_paths[:300]
 
-        # Split dataset
-        dd_paths, test_paths = train_test_split(
-            image_paths, test_size=0.9, random_state=42, shuffle=False)
+    # Split dataset
+    dd_paths, test_paths = train_test_split(
+        image_paths, test_size=0.95, random_state=42, shuffle=False)
 
-        train_dataset = VideoFootage(dd_paths)
-        test_dataset = VideoFootage(test_paths, distort=True, window=100, num_windows=1)
-        drift_dataset = VideoFootage(dd_paths)
-        logger.info(train_dataset.__len__())
-        logger.info(test_dataset.__len__())
-        logger.info(drift_dataset.__len__())
+    train_dataset = VideoFootage(dd_paths)
+    test_dataset = VideoFootage(test_paths, distort=True, window=100, num_windows=1)
+    drift_dataset = VideoFootage(dd_paths)
+    logger.info(train_dataset.__len__())
+    logger.info(test_dataset.__len__())
+    logger.info(drift_dataset.__len__())
 
 
     train_loader = DataLoader(
@@ -232,7 +228,8 @@ if __name__ == "__main__":
     with torch.no_grad():
         im_passed = []; idx=0
         for bimages, labels in test_dts_with_status_:
-            
+            classes_, cl_count= torch.unique(labels, sorted=True, return_counts=True)
+            test_dts_with_status_.write("classes: {}, freq: {}".format(classes_.tolist(), cl_count.tolist()))
             lstm_outputs = model_lstm(bimages.to(device))
             
             arniqa_outputs = compute_quality_score(
