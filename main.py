@@ -273,24 +273,21 @@ if __name__ == "__main__":
             else:
                 lstm_drift_pred.append(0)
 
-            # lstm_labels_argmax = torch.argmax(lstm_labels, dim=1)
-            # lstm_labels_01 = torch.where(labels>1, 1, 0)
             if torch.eq(ideal_labels,labels).sum() < bimages.shape[0]//2:
                 lstm_drift_tar.append(1)
             else:
                 lstm_drift_tar.append(0)
 
             # CALCULATE STATISTICS FOR IQA
-            for ao, lbl in zip(arniqa_outputs, labels):
-                if ao.item()>0.5:
-                    poor_quality_pred.append(0)
-                else:
-                    poor_quality_pred.append(1)
+            if meaniq<0.5:
+                poor_quality_pred.append(1)
+            else:
+                poor_quality_pred.append(0)
 
-                if lbl.cpu().item()==1:
-                    poor_quality_tar.append(0)
-                else:
-                    poor_quality_tar.append(1)
+            if torch.eq(ideal_labels,labels).sum() < bimages.shape[0]//2:
+                poor_quality_tar.append(1)
+            else:
+                poor_quality_tar.append(0)
 
 test_dts_with_status_.write("--------------------------------------------------")
 test_dts_with_status_.write("Drift stats")

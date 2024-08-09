@@ -24,15 +24,14 @@ import sys
 np.random.seed(seed=int(sys.argv[3]))
 
 class VideoFootage(Dataset):
-    def __init__(self, image_paths: str, distort: bool = False, tape: list = [], window: int = 50, num_windows: int = 3):
+    def __init__(self, image_paths: str, 
+                 distort: bool = False, 
+                 tape: list = [], 
+                 window: int = 50, 
+                 num_windows: int = 3, 
+                 dstr: list=['multiplicative_noise']):
 
-        self.dstr = [
-            'gaussian_blur', 'motion_blur', 'brighten', 
-            'darken', 'impulse_noise', 
-            'lens_blur',
-            'white_noise', 'white_noise_cc'
-        ]
-
+        self.dstr = dstr
         self.image_paths = image_paths
         self.transforms = { i:getattr(dstr_all, d) for i,d in enumerate(self.dstr)}
         self.window = window
@@ -59,8 +58,7 @@ class VideoFootage(Dataset):
         image = Image.open(self.image_paths[idx])
 
         preproc = T.Compose([
-            # T.CenterCrop(size=min(image.size[1:])),
-            T.CenterCrop(size=500),
+            T.CenterCrop(size=min(image.size[1:])),
             T.ToImage(), T.ToDtype(torch.float32, scale=True),
             T.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
         ])
@@ -77,7 +75,7 @@ class VideoFootage(Dataset):
 
         # image = T.RandomRotation([-10,10])(image)
         # image = T.ColorJitter(brightness=(0.7, 1.4))(image)
-        return image, label
+        return image.float(), label
 
 # class kadid10k(Dataset):
 #     def __init__(self, image_paths: str):
