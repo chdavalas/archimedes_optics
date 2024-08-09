@@ -27,45 +27,6 @@ device = torch.device("cuda") if torch.cuda.is_available() else "cpu"
 
 def init_dataloaders(dataset, batch_size=32):
 
-    # Create datasets and loaders
-    # url = "https://datasets.vqa.mmsp-kn.de/archives/kadid10k.zip"
-    # file_name = "kadid10k.zip"
-
-    # if not os.path.exists("kadid10k"):
-    #     logger.info("Downloading data ...")
-    #     urllib.request.urlretrieve(url, file_name)
-    #     with zipfile.ZipFile(file_name, 'r') as zip_ref:
-    #         logger.info("Extracting data ...")
-    #         zip_ref.extractall('.')
-    
-
-    # alphanumeric  = ["0{}".format(i) for i in range(1,10)]
-    # alphanumeric += ["{}".format(i) for i in range(10,82)]
-
-    # # Example image paths and labels
-    # image_paths = [
-    #     'kadid10k/images/I'+i+'_'+j+'_'+k+'.png'
-    #     for k in [alphanumeric[0]]+[alphanumeric[4]]
-    #     for i in alphanumeric
-    #     for j in alphanumeric[:25]
-    # ]
-
-
-    # pristine_images = ['kadid10k/images/I'+i+'.png' for i in alphanumeric]
-
-    # # Split dataset
-    # train_paths, test_paths = train_test_split(
-    #     image_paths, test_size=0.5, random_state=42, shuffle=True)
-    
-    # test_paths = sorted(test_paths, key=lambda x: x[::-1])
-
-    # train_dataset = kadid10k(train_paths)
-    # test_dataset = kadid10k(test_paths)
-
-    # # held-out from training+testing
-    # drift_dataset = kadid10k(pristine_images)
-
-    # Example image paths and labels (we take the images sorted very fast)
     im_count = len(os.listdir(dataset))
     file_format = "jpg"
     if dataset == "interlaken_inspection":
@@ -73,15 +34,13 @@ def init_dataloaders(dataset, batch_size=32):
 
     image_paths = [
         dataset+'/frame_'+dataset+'_{}.{}'.format(i, file_format) for i in range(im_count)]
-    
-    # image_paths = image_paths[:300]
 
     # Split dataset
     dd_paths, test_paths = train_test_split(
         image_paths, test_size=0.95, random_state=42, shuffle=False)
 
     train_dataset = VideoFootage(dd_paths)
-    test_dataset = VideoFootage(test_paths, distort=True, window=100, num_windows=1)
+    test_dataset = VideoFootage(test_paths, distort=True, window=100, num_windows=1, dstr=distortion)
     drift_dataset = VideoFootage(dd_paths)
     logger.info(train_dataset.__len__())
     logger.info(test_dataset.__len__())
@@ -181,11 +140,33 @@ if __name__ == "__main__":
     assembly_line_extreme_inspection, dashcam_inspection, assembly_line_inspection, 
     kadid10k, interlaken_inspection] 
     [batch_size]
-    [seed]'''
+    [seed]
+    ['gaussian_blur', 'motion_blur', 'brighten', 'color_block', 'color_diffusion', 
+    'color_saturation1', 'color_saturation2', 'color_shift', 
+    'darken', 'decode_jpeg', 'encode_jpeg', 
+    'high_sharpen', 'impulse_noise', 
+    'jitter', 'jpeg', 'jpeg2000', 
+    'lens_blur', 'linear_contrast_change', 'mean_shift', 
+    'multiplicative_noise', 'non_eccentricity_patch', 
+    'non_linear_contrast_change', 'pixelate', 'quantization', 
+    'white_noise', 'white_noise_cc']'''
 
     dataset=sys.argv[1]
     global_batch_size = int(sys.argv[2])
-    torch.manual_seed(sys.argv[3])
+    distortion = [sys.argv[3]]
+    torch.manual_seed(sys.argv[4])
+
+    assert distortion[0] in [
+        'gaussian_blur', 'motion_blur', 'brighten', 'color_block', 'color_diffusion', 
+        'color_saturation1', 'color_saturation2', 'color_shift', 
+        'darken', 'decode_jpeg', 'encode_jpeg', 
+        'high_sharpen', 'impulse_noise', 
+        'jitter', 'jpeg', 'jpeg2000', 
+        'lens_blur', 'linear_contrast_change', 'mean_shift', 
+        'multiplicative_noise', 'non_eccentricity_patch', 
+        'non_linear_contrast_change', 'pixelate', 'quantization', 
+        'white_noise', 'white_noise_cc'
+    ], help_string
 
     assert dataset in [
         "traffic_inspection",
@@ -193,8 +174,7 @@ if __name__ == "__main__":
         "factory_inspection", 
         "assembly_line_extreme_inspection", 
         "assembly_line_inspection", 
-        "dashcam_inspection", "interlaken_inspection",
-        "kadid10k"] and len(sys.argv)==4, help_string
+        "dashcam_inspection", "interlaken_inspection"] and len(sys.argv)==5, help_string
     
     # INIT DATASETS
     train, test, ddet = init_dataloaders(
@@ -229,7 +209,7 @@ if __name__ == "__main__":
         im_passed = []; idx=0
         for bimages, labels in test_dts_with_status_:
             classes_, cl_count= torch.unique(labels, sorted=True, return_counts=True)
-            test_dts_with_status_.write("classes: {}, freq: {}".format(classes_.tolist(), cl_count.tolist()))
+            logging.info("classes: {}, freq: {}".format(classes_.tolist(), cl_count.tolist()))
             lstm_outputs = model_lstm(bimages.to(device))
             
             arniqa_outputs = compute_quality_score(
@@ -248,13 +228,13 @@ if __name__ == "__main__":
             mean_iqscore_values.append(meaniq)
             all_lstm_mean_values.append(lstm_mean.item())
 
-            test_dts_with_status_.write("---------")
-            test_dts_with_status_.write("drift p-val:{}".format(pv))
-            test_dts_with_status_.write("mean_iq:{}".format(meaniq))
-            test_dts_with_status_.write("lstm_mean:{}".format(lstm_mean.item()))
-            test_dts_with_status_.write("---------")
+            logging.info("---------")
+            logging.info("drift p-val:{}".format(pv))
+            logging.info("mean_iq:{}".format(meaniq))
+            logging.info("lstm_mean:{}".format(lstm_mean.item()))
+            logging.info("---------")
 
-            # CALCULATE STATISTICS FOR DRIFT
+            # CALCULATE PRED STATS FOR DRIFT
             if pv<0.05:
                 drift_pred.append(1)
             else:
@@ -262,55 +242,51 @@ if __name__ == "__main__":
 
             ideal_labels = torch.tensor([0]*bimages.shape[0])
 
-            if torch.eq(ideal_labels,labels).sum() < bimages.shape[0]//2:
-                drift_tar.append(1)
-            else:
-                drift_tar.append(0)
-
-            # CALCULATE STATISTICS FOR LSTM
+            # CALCULATE PRED STATS FOR LSTM
             if lstm_mean.item()>0.5:
                 lstm_drift_pred.append(1)
             else:
                 lstm_drift_pred.append(0)
 
-            if torch.eq(ideal_labels,labels).sum() < bimages.shape[0]//2:
-                lstm_drift_tar.append(1)
-            else:
-                lstm_drift_tar.append(0)
-
-            # CALCULATE STATISTICS FOR IQA
+            # CALCULATE PRED STATS FOR IQA
             if meaniq<0.5:
                 poor_quality_pred.append(1)
             else:
                 poor_quality_pred.append(0)
 
+            # CALCULATE TARGET
             if torch.eq(ideal_labels,labels).sum() < bimages.shape[0]//2:
                 poor_quality_tar.append(1)
+                lstm_drift_tar.append(1)
+                drift_tar.append(1)
             else:
                 poor_quality_tar.append(0)
+                lstm_drift_tar.append(0)
+                drift_tar.append(0)
 
-test_dts_with_status_.write("--------------------------------------------------")
-test_dts_with_status_.write("Drift stats")
-test_dts_with_status_.write("Precision:{}".format(precision_score(drift_tar, drift_pred)))
-test_dts_with_status_.write("Recall:{}".format(recall_score(drift_tar, drift_pred)))
-test_dts_with_status_.write("F1:{}".format(f1_score(drift_tar, drift_pred)))
-test_dts_with_status_.write("--------------------------------------------------")
-test_dts_with_status_.write("IQA stats")
-test_dts_with_status_.write("Precision:{}".format(precision_score(poor_quality_tar, poor_quality_pred)))
-test_dts_with_status_.write("Recall:{}".format(recall_score(poor_quality_tar, poor_quality_pred)))
-test_dts_with_status_.write("F1:{}".format(f1_score(poor_quality_tar, poor_quality_pred)))
-test_dts_with_status_.write("--------------------------------------------------")
-test_dts_with_status_.write("LSTM stats")
-test_dts_with_status_.write("Precision:{}".format(precision_score(lstm_drift_tar, lstm_drift_pred)))
-test_dts_with_status_.write("Recall:{}".format(recall_score(lstm_drift_tar, lstm_drift_pred)))
-test_dts_with_status_.write("F1:{}".format(f1_score(lstm_drift_tar, lstm_drift_pred)))
-test_dts_with_status_.write("--------------------------------------------------")
+logging.info("--------------------------------------------------")
+logging.info("Drift stats")
+logging.info("Precision:{}".format(precision_score(drift_tar, drift_pred)))
+logging.info("Recall:{}".format(recall_score(drift_tar, drift_pred)))
+logging.info("F1:{}".format(f1_score(drift_tar, drift_pred)))
+logging.info("--------------------------------------------------")
+logging.info("IQA stats")
+logging.info("Precision:{}".format(precision_score(poor_quality_tar, poor_quality_pred)))
+logging.info("Recall:{}".format(recall_score(poor_quality_tar, poor_quality_pred)))
+logging.info("F1:{}".format(f1_score(poor_quality_tar, poor_quality_pred)))
+logging.info("--------------------------------------------------")
+logging.info("LSTM stats")
+logging.info("Precision:{}".format(precision_score(lstm_drift_tar, lstm_drift_pred)))
+logging.info("Recall:{}".format(recall_score(lstm_drift_tar, lstm_drift_pred)))
+logging.info("F1:{}".format(f1_score(lstm_drift_tar, lstm_drift_pred)))
+logging.info("--------------------------------------------------")
 
 import csv
 
 data = [
     {
         'dataset':dataset, 
+        'distortion_type': distortion[0],
         'method': 'mmd-drift', 
         'precision':precision_score(drift_tar, drift_pred), 
         'recall': recall_score(drift_tar, drift_pred), 
@@ -318,6 +294,7 @@ data = [
     },
     {
         'dataset':dataset, 
+        'distortion_type': distortion[0],
         'method': 'arniqa-mean', 
         'precision':precision_score(poor_quality_tar, poor_quality_pred), 
         'recall': recall_score(poor_quality_tar, poor_quality_pred), 
@@ -325,6 +302,7 @@ data = [
     },
         {
         'dataset':dataset, 
+        'distortion_type': distortion[0],
         'method': 'lstm-drift', 
         'precision':precision_score(lstm_drift_tar, lstm_drift_pred), 
         'recall': recall_score(lstm_drift_tar, lstm_drift_pred), 
@@ -335,12 +313,12 @@ data = [
 
 if os.path.exists('stats.csv'):
     with open('stats.csv', 'a', newline='') as csvfile:
-        header_name = ['dataset', 'method', 'precision', 'recall', 'f1']
+        header_name = ['dataset', 'distortion_type', 'method', 'precision', 'recall', 'f1']
         writer = csv.DictWriter(csvfile, fieldnames=header_name)
         writer.writerows(data)
 else:
     with open('stats.csv', 'w', newline='') as csvfile:
-        header_name = ['dataset', 'method', 'precision', 'recall', 'f1']
+        header_name = ['dataset', 'distortion_type', 'method', 'precision', 'recall', 'f1']
         writer = csv.DictWriter(csvfile, fieldnames=header_name)
         writer.writeheader()
         writer.writerows(data)

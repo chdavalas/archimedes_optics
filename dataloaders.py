@@ -19,17 +19,15 @@ import sys
 #     'white_noise', 'white_noise_cc'
 # ]
 
-
-
-np.random.seed(seed=int(sys.argv[3]))
+np.random.seed(seed=int(sys.argv[4]))
 
 class VideoFootage(Dataset):
     def __init__(self, image_paths: str, 
                  distort: bool = False, 
                  tape: list = [], 
                  window: int = 50, 
-                 num_windows: int = 3, 
-                 dstr: list=['multiplicative_noise']):
+                 num_windows: int = 1, 
+                 dstr: list=['white_noise']):
 
         self.dstr = dstr
         self.image_paths = image_paths
@@ -67,14 +65,10 @@ class VideoFootage(Dataset):
         if self.distort and idx in self.tape:
             dist_idx = self.dist_choice.pop()
             image = self.transforms[dist_idx](image)
-            # plt.imshow(image.permute(1,2,0))
-            # plt.show()
             label = torch.tensor(dist_idx+1)
         else:
             label = torch.tensor(0)
 
-        # image = T.RandomRotation([-10,10])(image)
-        # image = T.ColorJitter(brightness=(0.7, 1.4))(image)
         return image.float(), label
 
 # class kadid10k(Dataset):

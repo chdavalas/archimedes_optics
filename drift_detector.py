@@ -28,5 +28,6 @@ class drift_detector(nn.Module):
         return self.detector
 
     def forward(self, y_pred):
-        logger.info(self.detector.predict(y_pred.cpu().numpy())["data"])
-        return self.detector.predict(y_pred.cpu().numpy())["data"]["p_val"]
+        results = self.detector.predict(y_pred.cpu().numpy())["data"]
+        logger.info("drift distance/threshold: {}/{}".format(results["distance"], results["distance_threshold"]))
+        return results["p_val"]
