@@ -27,7 +27,8 @@ class VideoFootage(Dataset):
                  tape: list = [], 
                  window: int = 50, 
                  num_windows: int = 1, 
-                 dstr: list=['white_noise']):
+                 dstr: list=['white_noise'], 
+                 dist_sparsity: float = 0.0 ):
 
         self.dstr = dstr
         self.image_paths = image_paths
@@ -47,6 +48,9 @@ class VideoFootage(Dataset):
                 for win_st in random_window_start:
                     self.tape.extend(all_idx[win_st:win_st+self.window])
 
+            if dist_sparsity!=0.0:
+                rm_amount = int(window*dist_sparsity)
+                self.tape = np.random.choice([ x for x in self.tape], self.window-rm_amount)
         
     def __len__(self):
         return len(self.image_paths)
@@ -56,7 +60,8 @@ class VideoFootage(Dataset):
         image = Image.open(self.image_paths[idx])
 
         preproc = T.Compose([
-            T.CenterCrop(size=min(image.size[1:])),
+            # T.CenterCrop(size=min(image.size[1:])),
+            T.CenterCrop(size=600),
             T.ToImage(), T.ToDtype(torch.float32, scale=True),
             T.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
         ])
@@ -65,9 +70,9 @@ class VideoFootage(Dataset):
         if self.distort and idx in self.tape:
             dist_idx = self.dist_choice.pop()
             image = self.transforms[dist_idx](image)
-            label = torch.tensor(dist_idx+1)
+            label = torch.tensor([dist_idx+1])
         else:
-            label = torch.tensor(0)
+            label = torch.tensor([0])
 
         return image.float(), label
 

@@ -37,10 +37,10 @@ def init_dataloaders(dataset, batch_size=32):
 
     # Split dataset
     dd_paths, test_paths = train_test_split(
-        image_paths, test_size=0.95, random_state=42, shuffle=False)
+        image_paths, test_size=0.9, random_state=42, shuffle=False)
 
     train_dataset = VideoFootage(dd_paths)
-    test_dataset = VideoFootage(test_paths, distort=True, window=100, num_windows=1, dstr=distortion)
+    test_dataset = VideoFootage(test_paths, distort=True, window=100, num_windows=1, dist_sparsity=0.25, dstr=distortion)
     drift_dataset = VideoFootage(dd_paths)
     logger.info(train_dataset.__len__())
     logger.info(test_dataset.__len__())
@@ -186,7 +186,7 @@ if __name__ == "__main__":
     # LOAD ARNIQA+DRIFT DETECTOR
     model_drd, ddetect = load_drd(ddetector_dts=ddet)
      
-    # LOAD ARNIQA+ KADID10KLSTM
+    # LOAD ARNIQA+ KADID10K LSTM
     model_lstm = load_lstm_drift(train_dts=train)
 
     model_drd.to(device)
@@ -240,7 +240,7 @@ if __name__ == "__main__":
             else:
                 drift_pred.append(0)
 
-            ideal_labels = torch.tensor([0]*bimages.shape[0])
+            # ideal_labels = torch.tensor([0]*bimages.shape[0])
 
             # CALCULATE PRED STATS FOR LSTM
             if lstm_mean.item()>0.5:
@@ -249,13 +249,16 @@ if __name__ == "__main__":
                 lstm_drift_pred.append(0)
 
             # CALCULATE PRED STATS FOR IQA
-            if meaniq<0.5:
+            if meaniq<0.35:
                 poor_quality_pred.append(1)
             else:
                 poor_quality_pred.append(0)
 
-            # CALCULATE TARGET
-            if torch.eq(ideal_labels,labels).sum() < bimages.shape[0]//2:
+            # CALCULATE TARGET 
+            # (we assume that a set of 3 distorted images per batch 
+            # is an indicator of gradual drift)
+
+            if labels.sum() > 3:
                 poor_quality_tar.append(1)
                 lstm_drift_tar.append(1)
                 drift_tar.append(1)
