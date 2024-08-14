@@ -19,13 +19,13 @@ import sys
 #     'white_noise', 'white_noise_cc'
 # ]
 
-np.random.seed(seed=int(sys.argv[4]))
+
 
 class VideoFootage(Dataset):
     def __init__(self, image_paths: str, 
                  distort: bool = False, 
                  tape: list = [], 
-                 window: int = 50, 
+                 window: int = 0, 
                  num_windows: int = 1, 
                  dstr: list=['white_noise'], 
                  dist_sparsity: float = 0.0 ):
@@ -36,21 +36,26 @@ class VideoFootage(Dataset):
         self.window = window
         self.distort = distort
         if self.distort:
-            self.num_windows = num_windows
-            dist_choices = np.random.choice([i for i in self.transforms.keys()], num_windows)
-            self.dist_choice = sorted(np.repeat(dist_choices, window))
-            if tape!=[]:
-                self.tape = tape
+            if window==0:
+                self.tape = [ x for x in range(self.__len__()//2, self.__len__())]
+                dist_choices = np.random.choice([i for i in self.transforms.keys()], num_windows)
+                self.dist_choice = sorted(np.repeat(dist_choices, self.__len__()-(self.__len__()//2)))
             else:
-                all_idx = [ i for i in range(self.__len__())]
-                random_window_start = np.random.choice([ i for i in range(self.__len__()-self.window)], self.num_windows)
-                self.tape = []
-                for win_st in random_window_start:
-                    self.tape.extend(all_idx[win_st:win_st+self.window])
+                self.num_windows = num_windows
+                dist_choices = np.random.choice([i for i in self.transforms.keys()], num_windows)
+                self.dist_choice = sorted(np.repeat(dist_choices, window))
+                if tape!=[]:
+                    self.tape = tape
+                else:
+                    all_idx = [ i for i in range(self.__len__())]
+                    random_window_start = np.random.choice([ i for i in range(self.__len__()-self.window)], self.num_windows)
+                    self.tape = []
+                    for win_st in random_window_start:
+                        self.tape.extend(all_idx[win_st:win_st+self.window])
 
-            if dist_sparsity!=0.0:
-                rm_amount = int(window*dist_sparsity)
-                self.tape = np.random.choice([ x for x in self.tape], self.window-rm_amount)
+                if dist_sparsity!=0.0:
+                    rm_amount = int(window*dist_sparsity)
+                    self.tape = np.random.choice([ x for x in self.tape], self.window-rm_amount)
         
     def __len__(self):
         return len(self.image_paths)
@@ -60,8 +65,7 @@ class VideoFootage(Dataset):
         image = Image.open(self.image_paths[idx])
 
         preproc = T.Compose([
-            # T.CenterCrop(size=min(image.size[1:])),
-            T.CenterCrop(size=600),
+            T.CenterCrop(size=min(image.size[1:])),
             T.ToImage(), T.ToDtype(torch.float32, scale=True),
             T.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
         ])
@@ -70,9 +74,9 @@ class VideoFootage(Dataset):
         if self.distort and idx in self.tape:
             dist_idx = self.dist_choice.pop()
             image = self.transforms[dist_idx](image)
-            label = torch.tensor([dist_idx+1])
+            label = torch.tensor(dist_idx+1)
         else:
-            label = torch.tensor([0])
+            label = torch.tensor(0)
 
         return image.float(), label
 

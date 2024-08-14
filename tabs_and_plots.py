@@ -1,4 +1,9 @@
 import matplotlib.pyplot as plt
+import os
+
+# dir_ = "uav_inspection"
+# for i, uav_dir in enumerate(sorted(os.listdir(dir_))):
+#     os.rename(dir_+"/"+uav_dir, dir_+"/"+"frame_uav_inspection_{}.jpg".format(i))
 
 # for dataset in 
 

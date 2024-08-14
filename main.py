@@ -14,6 +14,7 @@ import sys
 from models_hub import ARNIQA, LSTM_drift
 import csv
 from copy import deepcopy
+import numpy as np
 
 logger = logging.getLogger(__name__)
 
@@ -25,7 +26,7 @@ logging.basicConfig(
 
 device = torch.device("cuda") if torch.cuda.is_available() else "cpu"
 
-def init_dataloaders(dataset, batch_size=32):
+def init_dataloaders(dataset, batch_size=32, window_size=100):
 
     im_count = len(os.listdir(dataset))
     file_format = "jpg"
@@ -37,10 +38,10 @@ def init_dataloaders(dataset, batch_size=32):
 
     # Split dataset
     dd_paths, test_paths = train_test_split(
-        image_paths, test_size=0.9, random_state=42, shuffle=False)
+        image_paths, test_size=0.7, random_state=42, shuffle=False)
 
     train_dataset = VideoFootage(dd_paths)
-    test_dataset = VideoFootage(test_paths, distort=True, window=100, num_windows=1, dist_sparsity=0.25, dstr=distortion)
+    test_dataset = VideoFootage(test_paths, distort=True, window=window_size, num_windows=1, dist_sparsity=0.1, dstr=distortion)
     drift_dataset = VideoFootage(dd_paths)
     logger.info(train_dataset.__len__())
     logger.info(test_dataset.__len__())
@@ -52,21 +53,26 @@ def init_dataloaders(dataset, batch_size=32):
     test_loader = DataLoader(
         test_dataset, batch_size=batch_size, shuffle=False, drop_last=True)
     ddetector_loader = DataLoader(
-        drift_dataset, batch_size=batch_size, shuffle=False, drop_last=True)
+        drift_dataset, batch_size=batch_size, shuffle=True, drop_last=True)
 
     return train_loader, test_loader, ddetector_loader
 
 
-def load_arniqa_model(regr_dt: str = "kadid10k"):
+def load_arniqa_model(ddetector_dts: DataLoader, regr_dt: str = "kadid10k"):
     """Load the pre-trained model."""
     # available_datasets = 
     # [
     # "live", "csiq", "tid2013", "kadid10k", 
     # "flive", "spaq", "clive", "koniq10k"
     # ]
-    model = ARNIQA(regressor_dataset=regr_dt)
+    model = ARNIQA(regressor_dataset=regr_dt).to(device)
+    
+    for i, (bimage, _) in enumerate(tqdm(ddetector_dts, desc="Calc ref image quality"),1):
+        with torch.no_grad(), torch.cuda.amp.autocast():
+            score = model(bimage.to(device), return_embedding=False, scale_score=True)
+            ref_mean = score.min().item() if i==1 else min(ref_mean, score.min().item())
 
-    return model.eval().to(device)
+    return model.eval().to(device), ref_mean
 
 def load_drd(ddetector_dts: DataLoader, dd_type:  str = "mmd"):
 
@@ -140,7 +146,7 @@ if __name__ == "__main__":
     assembly_line_extreme_inspection, dashcam_inspection, assembly_line_inspection, 
     kadid10k, interlaken_inspection] 
     [batch_size]
-    [seed]
+    [window_size]
     ['gaussian_blur', 'motion_blur', 'brighten', 'color_block', 'color_diffusion', 
     'color_saturation1', 'color_saturation2', 'color_shift', 
     'darken', 'decode_jpeg', 'encode_jpeg', 
@@ -149,13 +155,20 @@ if __name__ == "__main__":
     'lens_blur', 'linear_contrast_change', 'mean_shift', 
     'multiplicative_noise', 'non_eccentricity_patch', 
     'non_linear_contrast_change', 'pixelate', 'quantization', 
-    'white_noise', 'white_noise_cc']'''
+    'white_noise', 'white_noise_cc']
+    [seed]'''
 
+    assert len(sys.argv)==6, help_string
+
+    
     dataset=sys.argv[1]
     global_batch_size = int(sys.argv[2])
-    distortion = [sys.argv[3]]
-    torch.manual_seed(sys.argv[4])
-
+    window_size = int(sys.argv[3])
+    distortion = [sys.argv[4]]
+    
+    torch.manual_seed(sys.argv[5])
+    np.random.seed(seed=int(sys.argv[5]))
+    
     assert distortion[0] in [
         'gaussian_blur', 'motion_blur', 'brighten', 'color_block', 'color_diffusion', 
         'color_saturation1', 'color_saturation2', 'color_shift', 
@@ -174,22 +187,22 @@ if __name__ == "__main__":
         "factory_inspection", 
         "assembly_line_extreme_inspection", 
         "assembly_line_inspection", 
-        "dashcam_inspection", "interlaken_inspection"] and len(sys.argv)==5, help_string
+        "dashcam_inspection", "interlaken_inspection", "uav_inspection"], help_string
     
+
+
     # INIT DATASETS
     train, test, ddet = init_dataloaders(
-        dataset=dataset, batch_size=global_batch_size)
+        dataset=dataset, batch_size=global_batch_size, window_size=window_size)
 
     # LOAD ARNIQA
-    model_arniqa = load_arniqa_model().to(device)
+    model_arniqa, ref_mean = load_arniqa_model(ddet)
 
     # LOAD ARNIQA+DRIFT DETECTOR
     model_drd, ddetect = load_drd(ddetector_dts=ddet)
      
     # LOAD ARNIQA+ KADID10K LSTM
     model_lstm = load_lstm_drift(train_dts=train)
-
-    model_drd.to(device)
 
     all_drift_p_values = []
     mean_iqscore_values = []
@@ -209,7 +222,11 @@ if __name__ == "__main__":
         im_passed = []; idx=0
         for bimages, labels in test_dts_with_status_:
             classes_, cl_count= torch.unique(labels, sorted=True, return_counts=True)
-            logging.info("classes: {}, freq: {}".format(classes_.tolist(), cl_count.tolist()))
+            if classes_.tolist()[-1]!=0:
+                status_ = "CORR"
+            else:
+                status_ = "OK"
+            logging.info("status: {}, classes: {}, freq: {}".format(status_, classes_.tolist(), cl_count.tolist()))
             lstm_outputs = model_lstm(bimages.to(device))
             
             arniqa_outputs = compute_quality_score(
@@ -220,8 +237,6 @@ if __name__ == "__main__":
             pv = ddetect.forward(dd_in)
  
             meaniq = arniqa_outputs.mean().item()
-            lstm_labels = torch.where(labels>1, 1, 0)
-            lstm_labels = torch.nn.functional.one_hot(lstm_labels.long(), 2)
             lstm_mean = torch.argmax(lstm_outputs, dim=1).float().mean()
 
             all_drift_p_values.append(pv)
@@ -230,7 +245,7 @@ if __name__ == "__main__":
 
             logging.info("---------")
             logging.info("drift p-val:{}".format(pv))
-            logging.info("mean_iq:{}".format(meaniq))
+            logging.info("mean_iq:{}, ref:{}".format(meaniq, ref_mean))
             logging.info("lstm_mean:{}".format(lstm_mean.item()))
             logging.info("---------")
 
@@ -249,16 +264,13 @@ if __name__ == "__main__":
                 lstm_drift_pred.append(0)
 
             # CALCULATE PRED STATS FOR IQA
-            if meaniq<0.35:
+            if meaniq<=ref_mean:
                 poor_quality_pred.append(1)
             else:
                 poor_quality_pred.append(0)
 
-            # CALCULATE TARGET 
-            # (we assume that a set of 3 distorted images per batch 
-            # is an indicator of gradual drift)
-
-            if labels.sum() > 3:
+            # CALCULATE TARGET
+            if torch.where(labels>0, 1, 0).sum() > labels.shape[0]//2:
                 poor_quality_tar.append(1)
                 lstm_drift_tar.append(1)
                 drift_tar.append(1)
@@ -291,6 +303,8 @@ data = [
         'dataset':dataset, 
         'distortion_type': distortion[0],
         'method': 'mmd-drift', 
+        'window': window_size,
+        'seed': sys.argv[5],
         'precision':precision_score(drift_tar, drift_pred), 
         'recall': recall_score(drift_tar, drift_pred), 
         'f1':f1_score(drift_tar, drift_pred)
@@ -299,6 +313,8 @@ data = [
         'dataset':dataset, 
         'distortion_type': distortion[0],
         'method': 'arniqa-mean', 
+        'window': window_size,
+        'seed': sys.argv[5],
         'precision':precision_score(poor_quality_tar, poor_quality_pred), 
         'recall': recall_score(poor_quality_tar, poor_quality_pred), 
         'f1':f1_score(poor_quality_tar, poor_quality_pred)
@@ -307,6 +323,8 @@ data = [
         'dataset':dataset, 
         'distortion_type': distortion[0],
         'method': 'lstm-drift', 
+        'window': window_size,
+        'seed': sys.argv[5],
         'precision':precision_score(lstm_drift_tar, lstm_drift_pred), 
         'recall': recall_score(lstm_drift_tar, lstm_drift_pred), 
         'f1':f1_score(lstm_drift_tar, lstm_drift_pred)
@@ -316,12 +334,12 @@ data = [
 
 if os.path.exists('stats.csv'):
     with open('stats.csv', 'a', newline='') as csvfile:
-        header_name = ['dataset', 'distortion_type', 'method', 'precision', 'recall', 'f1']
+        header_name = ['dataset', 'distortion_type', 'method','window', 'seed', 'precision', 'recall', 'f1']
         writer = csv.DictWriter(csvfile, fieldnames=header_name)
         writer.writerows(data)
 else:
     with open('stats.csv', 'w', newline='') as csvfile:
-        header_name = ['dataset', 'distortion_type', 'method', 'precision', 'recall', 'f1']
+        header_name = ['dataset', 'distortion_type', 'method','window', 'seed', 'precision', 'recall', 'f1']
         writer = csv.DictWriter(csvfile, fieldnames=header_name)
         writer.writeheader()
         writer.writerows(data)

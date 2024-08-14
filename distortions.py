@@ -19,7 +19,7 @@ from utils_distortions import fspecial, filter2D, curves, imscatter, mapmm
 
 #From https://github.com/miccunifi/ARNIQA
 
-def gaussian_blur(x: torch.Tensor, blur_sigma: int = 5) -> torch.Tensor:
+def gaussian_blur(x: torch.Tensor, blur_sigma: int = 10) -> torch.Tensor:
     fs = 2 * math.ceil(2 * blur_sigma) + 1
     h = fspecial('gaussian', (fs, fs), blur_sigma)
     h = torch.from_numpy(h).float()
