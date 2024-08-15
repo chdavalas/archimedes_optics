@@ -26,7 +26,9 @@ logging.basicConfig(
 
 device = torch.device("cuda") if torch.cuda.is_available() else "cpu"
 
-def init_dataloaders(dataset, batch_size=32, window_size=100):
+def init_dataloaders(dataset, batch_size=32, window_size=100, 
+                     shuffle=False, drop_last=True, distort=False, 
+                     num_windows=1, dist_sparsity=0.0, dstr=["white_noise"]):
 
     im_count = len(os.listdir(dataset))
     file_format = "jpg"
@@ -36,26 +38,19 @@ def init_dataloaders(dataset, batch_size=32, window_size=100):
     image_paths = [
         dataset+'/frame_'+dataset+'_{}.{}'.format(i, file_format) for i in range(im_count)]
 
-    # Split dataset
-    dd_paths, test_paths = train_test_split(
-        image_paths, test_size=0.7, random_state=42, shuffle=False)
+    # # Split dataset
+    # dd_paths, test_paths = train_test_split(
+    #     image_paths, test_size=0.7, random_state=42, shuffle=False)
 
-    train_dataset = VideoFootage(dd_paths)
-    test_dataset = VideoFootage(test_paths, distort=True, window=window_size, num_windows=1, dist_sparsity=0.1, dstr=distortion)
-    drift_dataset = VideoFootage(dd_paths)
-    logger.info(train_dataset.__len__())
-    logger.info(test_dataset.__len__())
-    logger.info(drift_dataset.__len__())
+    _dataset = VideoFootage(
+        image_paths, distort=distort, window=window_size, 
+        num_windows=num_windows, dist_sparsity=dist_sparsity, dstr=dstr)
+    logger.info(_dataset.__len__())
 
 
-    train_loader = DataLoader(
-        train_dataset, batch_size=batch_size, shuffle=True)
-    test_loader = DataLoader(
-        test_dataset, batch_size=batch_size, shuffle=False, drop_last=True)
-    ddetector_loader = DataLoader(
-        drift_dataset, batch_size=batch_size, shuffle=True, drop_last=True)
+    _loader = DataLoader(_dataset, batch_size=batch_size, shuffle=shuffle, drop_last=drop_last)
 
-    return train_loader, test_loader, ddetector_loader
+    return _loader
 
 
 def load_arniqa_model(ddetector_dts: DataLoader, regr_dt: str = "kadid10k"):
@@ -158,16 +153,16 @@ if __name__ == "__main__":
     'white_noise', 'white_noise_cc']
     [seed]'''
 
-    assert len(sys.argv)==6, help_string
+    assert len(sys.argv)==7, help_string
 
+    test_dataset=sys.argv[1]
+    ref_dataset=sys.argv[2]
+    global_batch_size = int(sys.argv[3])
+    window_size = int(sys.argv[4])
+    distortion = [sys.argv[5]]
     
-    dataset=sys.argv[1]
-    global_batch_size = int(sys.argv[2])
-    window_size = int(sys.argv[3])
-    distortion = [sys.argv[4]]
-    
-    torch.manual_seed(sys.argv[5])
-    np.random.seed(seed=int(sys.argv[5]))
+    torch.manual_seed(sys.argv[6])
+    np.random.seed(seed=int(sys.argv[6]))
     
     assert distortion[0] in [
         'gaussian_blur', 'motion_blur', 'brighten', 'color_block', 'color_diffusion', 
@@ -181,7 +176,15 @@ if __name__ == "__main__":
         'white_noise', 'white_noise_cc'
     ], help_string
 
-    assert dataset in [
+    assert test_dataset in [
+        "traffic_inspection",
+        "pipe_inspection", 
+        "factory_inspection", 
+        "assembly_line_extreme_inspection", 
+        "assembly_line_inspection", 
+        "dashcam_inspection", "interlaken_inspection", "uav_inspection"], help_string
+    
+    assert ref_dataset in [
         "traffic_inspection",
         "pipe_inspection", 
         "factory_inspection", 
@@ -190,19 +193,20 @@ if __name__ == "__main__":
         "dashcam_inspection", "interlaken_inspection", "uav_inspection"], help_string
     
 
-
     # INIT DATASETS
-    train, test, ddet = init_dataloaders(
-        dataset=dataset, batch_size=global_batch_size, window_size=window_size)
-
+    test = init_dataloaders(
+        dataset=test_dataset, batch_size=global_batch_size, window_size=window_size, dstr=distortion, distort=True)
+    rdet = init_dataloaders(
+        dataset=ref_dataset, batch_size=global_batch_size, shuffle=True)
+    
     # LOAD ARNIQA
-    model_arniqa, ref_mean = load_arniqa_model(ddet)
+    model_arniqa, ref_mean = load_arniqa_model(rdet)
 
     # LOAD ARNIQA+DRIFT DETECTOR
-    model_drd, ddetect = load_drd(ddetector_dts=ddet)
+    model_drd, ddetect = load_drd(ddetector_dts=rdet)
      
     # LOAD ARNIQA+ KADID10K LSTM
-    model_lstm = load_lstm_drift(train_dts=train)
+    model_lstm = load_lstm_drift(train_dts=rdet)
 
     all_drift_p_values = []
     mean_iqscore_values = []
@@ -300,7 +304,8 @@ import csv
 
 data = [
     {
-        'dataset':dataset, 
+        'test_dataset':test_dataset, 
+        'ref_dataset':ref_dataset, 
         'distortion_type': distortion[0],
         'method': 'mmd-drift', 
         'window': window_size,
@@ -310,7 +315,8 @@ data = [
         'f1':f1_score(drift_tar, drift_pred)
     },
     {
-        'dataset':dataset, 
+        'test_dataset':test_dataset, 
+        'ref_dataset':ref_dataset, 
         'distortion_type': distortion[0],
         'method': 'arniqa-mean', 
         'window': window_size,
@@ -320,7 +326,8 @@ data = [
         'f1':f1_score(poor_quality_tar, poor_quality_pred)
     },
         {
-        'dataset':dataset, 
+        'test_dataset':test_dataset, 
+        'ref_dataset':ref_dataset, 
         'distortion_type': distortion[0],
         'method': 'lstm-drift', 
         'window': window_size,
@@ -334,12 +341,12 @@ data = [
 
 if os.path.exists('stats.csv'):
     with open('stats.csv', 'a', newline='') as csvfile:
-        header_name = ['dataset', 'distortion_type', 'method','window', 'seed', 'precision', 'recall', 'f1']
+        header_name = ['test_dataset', 'ref_dataset',  'distortion_type', 'method','window', 'seed', 'precision', 'recall', 'f1']
         writer = csv.DictWriter(csvfile, fieldnames=header_name)
         writer.writerows(data)
 else:
     with open('stats.csv', 'w', newline='') as csvfile:
-        header_name = ['dataset', 'distortion_type', 'method','window', 'seed', 'precision', 'recall', 'f1']
+        header_name = ['test_dataset', 'ref_dataset',  'distortion_type', 'method','window', 'seed', 'precision', 'recall', 'f1']
         writer = csv.DictWriter(csvfile, fieldnames=header_name)
         writer.writeheader()
         writer.writerows(data)
