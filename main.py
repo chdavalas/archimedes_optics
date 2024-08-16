@@ -1,3 +1,4 @@
+import argparse
 import os
 import torch
 from sklearn.model_selection import train_test_split
@@ -26,27 +27,34 @@ logging.basicConfig(
 
 device = torch.device("cuda") if torch.cuda.is_available() else "cpu"
 
-def init_dataloaders(dataset, batch_size=32, window_size=100, 
+def init_dataloaders(dataset_name_split, batch_size=32, window_size=100, 
                      shuffle=False, drop_last=True, distort=False, 
                      num_windows=1, dist_sparsity=0.0, dstr=["white_noise"]):
 
-    im_count = len(os.listdir(dataset))
+    im_count = len(os.listdir(dataset_name_split[0]))
+
+    if len(dataset_name_split)==3:
+        dataset, start, stop = dataset_name_split
+        start, stop = int(start), int(stop)
+        if stop==0: stop=im_count
+
+    else:
+        dataset, start, stop = dataset_name_split[0], 0, im_count
+        
     file_format = "jpg"
     if dataset == "interlaken_inspection":
         file_format = "png"
 
     image_paths = [
         dataset+'/frame_'+dataset+'_{}.{}'.format(i, file_format) for i in range(im_count)]
-
-    # # Split dataset
-    # dd_paths, test_paths = train_test_split(
-    #     image_paths, test_size=0.7, random_state=42, shuffle=False)
+    
+    image_paths = image_paths[start:stop]
 
     _dataset = VideoFootage(
         image_paths, distort=distort, window=window_size, 
         num_windows=num_windows, dist_sparsity=dist_sparsity, dstr=dstr)
-    logger.info(_dataset.__len__())
-
+    
+    logger.info("name:{}, total frames:{} from {} to {}".format(dataset, _dataset.__len__(), start, stop))
 
     _loader = DataLoader(_dataset, batch_size=batch_size, shuffle=shuffle, drop_last=drop_last)
 
@@ -136,13 +144,16 @@ def compute_quality_score(model, img):
     return score
 
 if __name__ == "__main__":
-    help_string = '''usage python3 main.py 
-    [pipe_inspection, traffic_inspection, factory_inspection, 
+
+    dataset_list = '''Choose between: pipe_inspection, traffic_inspection, factory_inspection, 
     assembly_line_extreme_inspection, dashcam_inspection, assembly_line_inspection, 
-    kadid10k, interlaken_inspection] 
-    [batch_size]
-    [window_size]
-    ['gaussian_blur', 'motion_blur', 'brighten', 'color_block', 'color_diffusion', 
+    kadid10k, interlaken_inspection. You can also define a split (optionally) with comma separated values (format: dataset,start,stop OR dataset,stop) 
+    i.e traffic_inspection,100,200 
+    OR uav_inspection,100 (same as uav_inspection,0,100) 
+    OR dashcam_inspection,200,0 (same as dashcam_inspetion,200,len(dashcam_inspection))'''
+    
+    distortion_list=''' choose between:
+    'gaussian_blur', 'motion_blur', 'brighten', 'color_block', 'color_diffusion', 
     'color_saturation1', 'color_saturation2', 'color_shift', 
     'darken', 'decode_jpeg', 'encode_jpeg', 
     'high_sharpen', 'impulse_noise', 
@@ -150,54 +161,39 @@ if __name__ == "__main__":
     'lens_blur', 'linear_contrast_change', 'mean_shift', 
     'multiplicative_noise', 'non_eccentricity_patch', 
     'non_linear_contrast_change', 'pixelate', 'quantization', 
-    'white_noise', 'white_noise_cc']
-    [seed]'''
+    'white_noise', 'white_noise_cc. You can also choose multiple distortions which will be applied randomly within a window'''
 
-    assert len(sys.argv)==7, help_string
 
-    test_dataset=sys.argv[1]
-    ref_dataset=sys.argv[2]
-    global_batch_size = int(sys.argv[3])
-    window_size = int(sys.argv[4])
-    distortion = [sys.argv[5]]
+    parser = argparse.ArgumentParser(description='testing camera diagnostics')
+    parser.add_argument('--test-dataset', type=str, help=dataset_list)
+    parser.add_argument('--ref-dataset', type=str, help=dataset_list)
+    parser.add_argument('--seed', type=int, help='define numpy/pytorch seed for reproducible results', default=42)
+    parser.add_argument('--batch-size', type=int, help='define batch size for training/referencing/testing', default=16)
+    parser.add_argument('--window', type=int, help='corruption window, if >0 the window is the last half of the testing dataset', default=0)
+    parser.add_argument('--window_sparsity', type=float, help='amount of distortion within an window in the form of percent [0.0, 1.0]', default=0.0)
+    parser.add_argument('--distortion-type', type=str, help=distortion_list, default="white_noise")
+    args = parser.parse_args()
     
-    torch.manual_seed(sys.argv[6])
-    np.random.seed(seed=int(sys.argv[6]))
-    
-    assert distortion[0] in [
-        'gaussian_blur', 'motion_blur', 'brighten', 'color_block', 'color_diffusion', 
-        'color_saturation1', 'color_saturation2', 'color_shift', 
-        'darken', 'decode_jpeg', 'encode_jpeg', 
-        'high_sharpen', 'impulse_noise', 
-        'jitter', 'jpeg', 'jpeg2000', 
-        'lens_blur', 'linear_contrast_change', 'mean_shift', 
-        'multiplicative_noise', 'non_eccentricity_patch', 
-        'non_linear_contrast_change', 'pixelate', 'quantization', 
-        'white_noise', 'white_noise_cc'
-    ], help_string
+    test_dataset = args.test_dataset.split(',')
+    if len(test_dataset)==2: test_dataset.insert(1, '0')
+    ref_dataset = args.ref_dataset.split(',')
+    if len(ref_dataset)==2: test_dataset.insert(1, '0')
 
-    assert test_dataset in [
-        "traffic_inspection",
-        "pipe_inspection", 
-        "factory_inspection", 
-        "assembly_line_extreme_inspection", 
-        "assembly_line_inspection", 
-        "dashcam_inspection", "interlaken_inspection", "uav_inspection"], help_string
-    
-    assert ref_dataset in [
-        "traffic_inspection",
-        "pipe_inspection", 
-        "factory_inspection", 
-        "assembly_line_extreme_inspection", 
-        "assembly_line_inspection", 
-        "dashcam_inspection", "interlaken_inspection", "uav_inspection"], help_string
-    
+    global_batch_size = args.batch_size
+    window_size = args.window
+    sparsity = args.window_sparsity
+    distortion = args.distortion_type.split(',')
 
+    torch.manual_seed(args.seed)
+    np.random.seed(seed=args.seed)
+    
     # INIT DATASETS
     test = init_dataloaders(
-        dataset=test_dataset, batch_size=global_batch_size, window_size=window_size, dstr=distortion, distort=True)
+        dataset_name_split=test_dataset, batch_size=global_batch_size, window_size=window_size, 
+        dstr=distortion, distort=True, dist_sparsity=sparsity)
+    
     rdet = init_dataloaders(
-        dataset=ref_dataset, batch_size=global_batch_size, shuffle=True)
+        dataset_name_split=ref_dataset, batch_size=global_batch_size, shuffle=True)
     
     # LOAD ARNIQA
     model_arniqa, ref_mean = load_arniqa_model(rdet)
@@ -309,7 +305,7 @@ data = [
         'distortion_type': distortion[0],
         'method': 'mmd-drift', 
         'window': window_size,
-        'seed': sys.argv[5],
+        'seed': args.seed,
         'precision':precision_score(drift_tar, drift_pred), 
         'recall': recall_score(drift_tar, drift_pred), 
         'f1':f1_score(drift_tar, drift_pred)
@@ -320,7 +316,7 @@ data = [
         'distortion_type': distortion[0],
         'method': 'arniqa-mean', 
         'window': window_size,
-        'seed': sys.argv[5],
+        'seed': args.seed,
         'precision':precision_score(poor_quality_tar, poor_quality_pred), 
         'recall': recall_score(poor_quality_tar, poor_quality_pred), 
         'f1':f1_score(poor_quality_tar, poor_quality_pred)
@@ -331,7 +327,7 @@ data = [
         'distortion_type': distortion[0],
         'method': 'lstm-drift', 
         'window': window_size,
-        'seed': sys.argv[5],
+        'seed': args.seed,
         'precision':precision_score(lstm_drift_tar, lstm_drift_pred), 
         'recall': recall_score(lstm_drift_tar, lstm_drift_pred), 
         'f1':f1_score(lstm_drift_tar, lstm_drift_pred)
