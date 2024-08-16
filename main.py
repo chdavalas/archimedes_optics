@@ -77,6 +77,10 @@ def load_arniqa_model(ddetector_dts: DataLoader, regr_dt: str = "kadid10k"):
 
     return model.eval().to(device), ref_mean
 
+def return_feat_ext_output(feat_ext, bim):
+    _, inp = feat_ext(bim.to(device))
+    return inp.argmax(dim=1).unsqueeze(1).float()
+
 def load_drd(ddetector_dts: DataLoader, dd_type:  str = "mmd"):
 
     ddetect = drift_detector(detector=dd_type)
@@ -89,9 +93,7 @@ def load_drd(ddetector_dts: DataLoader, dd_type:  str = "mmd"):
 
     x_ref = []
     for bim, _ in tqdm(ddetector_dts, desc="Drift fit"):
-        _, inp = feat_ext(bim.to(device))
-        
-        inp = inp.argmax(dim=1).unsqueeze(1).float()
+        inp = return_feat_ext_output(feat_ext, bim)
         x_ref.append(inp)
 
     x_ref = torch.cat(x_ref, dim=0)
@@ -177,7 +179,7 @@ if __name__ == "__main__":
     test_dataset = args.test_dataset.split(',')
     if len(test_dataset)==2: test_dataset.insert(1, '0')
     ref_dataset = args.ref_dataset.split(',')
-    if len(ref_dataset)==2: test_dataset.insert(1, '0')
+    if len(ref_dataset)==2: ref_dataset.insert(1, '0')
 
     global_batch_size = args.batch_size
     window_size = args.window
@@ -232,8 +234,8 @@ if __name__ == "__main__":
             arniqa_outputs = compute_quality_score(
                 model_arniqa, bimages.to(device),
                 )
-            _, dd_in = model_drd(bimages.to(device))
-            dd_in = dd_in.argmax(dim=1).unsqueeze(1).float()
+                
+            dd_in = return_feat_ext_output(model_drd, bimages)
             pv = ddetect.forward(dd_in)
  
             meaniq = arniqa_outputs.mean().item()
