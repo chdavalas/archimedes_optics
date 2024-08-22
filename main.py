@@ -1,7 +1,6 @@
 import argparse
 import os
 import torch
-from sklearn.model_selection import train_test_split
 from dataloaders import VideoFootage
 from torch.utils.data import DataLoader
 import torchvision.transforms.v2 as T
@@ -11,11 +10,11 @@ import torch.nn as nn
 import torch.optim as optim
 import logging
 from sklearn.metrics import precision_score, recall_score, f1_score
-import sys
 from models_hub import ARNIQA, LSTM_drift
 import csv
 from copy import deepcopy
 import numpy as np
+import models_hub
 
 logger = logging.getLogger(__name__)
 
@@ -42,7 +41,7 @@ def init_dataloaders(dataset_name_split, batch_size=32, window_size=100,
         dataset, start, stop = dataset_name_split[0], 0, im_count
         
     file_format = "jpg"
-    if dataset == "interlaken_inspection":
+    if dataset in ["interlaken_inspection", "zurich_inspection"]:
         file_format = "png"
 
     image_paths = [
@@ -77,23 +76,36 @@ def load_arniqa_model(ddetector_dts: DataLoader, regr_dt: str = "kadid10k"):
 
     return model.eval().to(device), ref_mean
 
-def return_feat_ext_output(feat_ext, bim):
-    _, inp = feat_ext(bim.to(device))
-    return inp.argmax(dim=1).unsqueeze(1).float()
+def return_feat_ext_output(feat_ext, bim, load_ref):
+    if not load_ref:
+        _, inp = feat_ext(bim.to(device))
+    else:
+        inp = feat_ext(bim.to(device))
+    out_ = inp.argmax(dim=1).unsqueeze(1).float()
+    logger.info(out_)
+    return out_
 
-def load_drd(ddetector_dts: DataLoader, dd_type:  str = "mmd"):
+def load_drd(ddetector_dts: DataLoader, dd_type:  str = "mmd", load_ref=False):
 
     ddetect = drift_detector(detector=dd_type)
-    model = ARNIQA().encoder.to(device)
     
-    feat_ext = torch.nn.Sequential(deepcopy(model)).eval().to(device)
+    if not load_ref or not os.path.exists("ref_model.pth"):
+        logger.info("DRIFT DETECT: ref model NOT FOUND/NOT REQUESTED")
+        model = ARNIQA().encoder.to(device)
+        feat_ext = torch.nn.Sequential(deepcopy(model)).eval().to(device)
+    else:
+        logger.info("DRIFT DETECT: ref model LOADED")
+        model = models_hub.ResNet18(head_dim=10).to(device)
+        model.load_state_dict(torch.load("ref_model.pth"))
+        feat_ext = torch.nn.Sequential(deepcopy(model)).eval().to(device)
+
     
     for param in feat_ext.parameters():
         param.requires_grad = False
 
     x_ref = []
     for bim, _ in tqdm(ddetector_dts, desc="Drift fit"):
-        inp = return_feat_ext_output(feat_ext, bim)
+        inp = return_feat_ext_output(feat_ext, bim, load_ref)
         x_ref.append(inp)
 
     x_ref = torch.cat(x_ref, dim=0)
@@ -149,7 +161,7 @@ if __name__ == "__main__":
 
     dataset_list = '''Choose between: pipe_inspection, traffic_inspection, factory_inspection, 
     assembly_line_extreme_inspection, dashcam_inspection, assembly_line_inspection, 
-    kadid10k, interlaken_inspection. You can also define a split (optionally) with comma separated values (format: dataset,start,stop OR dataset,stop) 
+    kadid10k, interlaken_inspection, zurich_inspection. You can also define a split (optionally) with comma separated values (format: dataset,start,stop OR dataset,stop) 
     i.e traffic_inspection,100,200 
     OR uav_inspection,100 (same as uav_inspection,0,100) 
     OR dashcam_inspection,200,0 (same as dashcam_inspetion,200,len(dashcam_inspection))'''
@@ -172,7 +184,7 @@ if __name__ == "__main__":
     parser.add_argument('--seed', type=int, help='define numpy/pytorch seed for reproducible results', default=42)
     parser.add_argument('--batch-size', type=int, help='define batch size for training/referencing/testing', default=16)
     parser.add_argument('--window', type=int, help='corruption window, if >0 the window is the last half of the testing dataset', default=0)
-    parser.add_argument('--window_sparsity', type=float, help='amount of distortion within an window in the form of percent [0.0, 1.0]', default=0.0)
+    parser.add_argument('--window-sparsity', type=float, help='amount of distortion within an window in the form of percent [0.0, 1.0]', default=0.0)
     parser.add_argument('--distortion-type', type=str, help=distortion_list, default="white_noise")
     args = parser.parse_args()
     
@@ -196,12 +208,17 @@ if __name__ == "__main__":
     
     rdet = init_dataloaders(
         dataset_name_split=ref_dataset, batch_size=global_batch_size, shuffle=True)
-    
+
+    lstm_dist = "gaussian_blur,white_noise,motion_blur".split(',')
+    train = init_dataloaders(
+        dataset_name_split=ref_dataset, batch_size=global_batch_size, shuffle=True, distort=False, window_size=0, dstr=lstm_dist)
+
     # LOAD ARNIQA
     model_arniqa, ref_mean = load_arniqa_model(rdet)
 
     # LOAD ARNIQA+DRIFT DETECTOR
-    model_drd, ddetect = load_drd(ddetector_dts=rdet)
+    lf=True
+    model_drd, ddetect = load_drd(ddetector_dts=rdet, load_ref=lf)
      
     # LOAD ARNIQA+ KADID10K LSTM
     model_lstm = load_lstm_drift(train_dts=rdet)
@@ -235,7 +252,7 @@ if __name__ == "__main__":
                 model_arniqa, bimages.to(device),
                 )
                 
-            dd_in = return_feat_ext_output(model_drd, bimages)
+            dd_in = return_feat_ext_output(model_drd, bimages, lf)
             pv = ddetect.forward(dd_in)
  
             meaniq = arniqa_outputs.mean().item()

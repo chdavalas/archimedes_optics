@@ -37,6 +37,7 @@ class VideoFootage(Dataset):
         self.distort = distort
         if self.distort:
             if window==0:
+                self.window = self.__len__()-(self.__len__()//2)
                 self.tape = [ x for x in range(self.__len__()//2, self.__len__())]
                 dist_choices = np.random.choice([i for i in self.transforms.keys()], num_windows)
                 self.dist_choice = sorted(np.repeat(dist_choices, self.__len__()-(self.__len__()//2)))
@@ -53,9 +54,9 @@ class VideoFootage(Dataset):
                     for win_st in random_window_start:
                         self.tape.extend(all_idx[win_st:win_st+self.window])
 
-                if dist_sparsity!=0.0:
-                    rm_amount = int(window*dist_sparsity)
-                    self.tape = np.random.choice([ x for x in self.tape], self.window-rm_amount)
+            if dist_sparsity!=0.0:
+                rm_amount = int(window*dist_sparsity)
+                self.tape = np.random.choice([ x for x in self.tape], self.window-rm_amount)
         
     def __len__(self):
         return len(self.image_paths)
