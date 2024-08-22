@@ -1,11 +1,24 @@
-import matplotlib.pyplot as plt
-import os
+import pandas as pd
 
-dir_ = "zurich_inspection"
-for i, uav_dir in enumerate(sorted(os.listdir(dir_))):
-    os.rename(dir_+"/"+uav_dir, dir_+"/"+"frame_zurich_inspection_{}.png".format(i))
 
-# for dataset in 
+stats_df = pd.read_csv('stats.csv')  
+
+stats_df["test_dataset"] = stats_df["test_dataset"].astype('string')
+stats_df["test_dataset"] = stats_df["test_dataset"].str.strip("[]")
+stats_df["test_dataset"] = stats_df["test_dataset"].str.replace(", ", "_")
+stats_df["test_dataset"] = stats_df["test_dataset"].str.replace("\'", "")
+
+stats_df["ref_dataset"] = stats_df["ref_dataset"].astype('string')
+stats_df["ref_dataset"] = stats_df["ref_dataset"].str.strip("[]")
+stats_df["ref_dataset"] = stats_df["ref_dataset"].str.replace(", ", "_")
+stats_df["ref_dataset"] = stats_df["ref_dataset"].str.replace("\'", "")
+
+stats_df["precision"] = stats_df["precision"].round(3)
+stats_df["recall"] = stats_df["recall"].round(3)
+stats_df["f1"] = stats_df["f1"].round(3)
+
+
+print(stats_df)
 
 # plt.subplot(3, 1, 1)
 # plt.title(dataset)
