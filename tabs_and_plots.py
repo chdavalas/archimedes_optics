@@ -17,8 +17,8 @@ stats_df["precision"] = stats_df["precision"].round(3)
 stats_df["recall"] = stats_df["recall"].round(3)
 stats_df["f1"] = stats_df["f1"].round(3)
 
-
-print(stats_df)
+df1 = stats_df[(stats_df.test_dataset == "zurich_inspection") & (stats_df.window == 0.0)][["method","distortion_type","precision","recall","f1"]]
+print(df1)
 
 # plt.subplot(3, 1, 1)
 # plt.title(dataset)

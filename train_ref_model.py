@@ -109,9 +109,9 @@ if __name__ == "__main__":
     parser.add_argument('--ref-dataset', type=str, help=dataset_list)
     parser.add_argument('--seed', type=int, help='define numpy/pytorch seed for reproducible results', default=42)
     parser.add_argument('--num-epochs', type=int, help='train epochs for reference model', default=100)
-    parser.add_argument('--distortion-type', type=str, help=distortion_list, default="white_noise,motion_blur,gaussian_blur")
+    parser.add_argument('--distortion-type', type=str, help=distortion_list, default="white_noise,lens_blur,gaussian_blur,darken")
     parser.add_argument('--window-sparsity', type=float, help='amount of distortion within an window in the form of percent [0.0, 1.0]', default=0.15)
-    parser.add_argument('--window', type=int, help='distortion window', default=100)
+    parser.add_argument('--window', type=int, help='distortion window', default=200)
 
     args = parser.parse_args()
     torch.manual_seed(args.seed)

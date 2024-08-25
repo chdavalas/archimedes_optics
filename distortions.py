@@ -31,7 +31,7 @@ def gaussian_blur(x: torch.Tensor, blur_sigma: int = 10) -> torch.Tensor:
     return y
 
 
-def lens_blur(x: torch.Tensor, radius: int=30) -> torch.Tensor:
+def lens_blur(x: torch.Tensor, radius: int=15) -> torch.Tensor:
     h = fspecial('disk', radius)
     h = torch.from_numpy(h).float()
 

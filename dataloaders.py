@@ -81,32 +81,32 @@ class VideoFootage(Dataset):
 
         return image.float(), label
 
-# class kadid10k(Dataset):
-#     def __init__(self, image_paths: str):
-#         self.image_paths = image_paths
+class kadid10k(Dataset):
+    def __init__(self, image_paths: str):
+        self.image_paths = image_paths
 
-#     def __len__(self):
-#         return len(self.image_paths)
+    def __len__(self):
+        return len(self.image_paths)
 
-#     def __getitem__(self, idx):
-#         im_path = self.image_paths[idx]
+    def __getitem__(self, idx):
+        im_path = self.image_paths[idx]
 
-#         if len(im_path.replace(".png", "").split("/")[-1])==3:
-#             label = 1
-#         else:
-#             quality = int(im_path.split('.')[0][-1])
-#             label = quality
+        if len(im_path.replace(".png", "").split("/")[-1])==3:
+            label = 1
+        else:
+            quality = int(im_path.split('_')[0][-1])
+            label = quality
 
-#         big_image = Image.open(im_path)
+        big_image = Image.open(im_path)
 
-#         preproc = T.Compose([
-#             T.CenterCrop(size=min(big_image.size)),
-#             T.ToImage(), T.ToDtype(torch.float32, scale=True),
-#             T.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
-#         ])
+        preproc = T.Compose([
+            T.CenterCrop(size=min(big_image.size)),
+            T.ToImage(), T.ToDtype(torch.float32, scale=True),
+            T.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+        ])
 
-#         big_image = preproc(big_image)
+        big_image = preproc(big_image)
         
-#         label = torch.tensor(label, dtype=torch.long)
+        label = torch.tensor(label, dtype=torch.long)
 
-#         return big_image, label
+        return big_image, label

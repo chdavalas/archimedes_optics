@@ -112,7 +112,7 @@ class ResNet18(nn.Module):
         self.head = nn.Sequential(nn.Linear(self.feat_dim, self.head))
 
     def forward(self, x):
-        x = T.Resize((128,128))(x)
+        x = T.Resize((256,256))(x)
         f = self.model(x)
         g = self.head(f.squeeze())
         return g
@@ -236,7 +236,7 @@ class LSTM_drift(nn.Module):
                  emb_size: int = 128, 
                  hid_size: int = 50, 
                  num_layers: int=2, 
-                 class_out_size: int=2):
+                 class_out_size: int=1):
         
         super(LSTM_drift, self).__init__()
         

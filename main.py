@@ -1,7 +1,7 @@
 import argparse
 import os
 import torch
-from dataloaders import VideoFootage
+from dataloaders import VideoFootage, kadid10k
 from torch.utils.data import DataLoader
 import torchvision.transforms.v2 as T
 from drift_detector import drift_detector
@@ -15,6 +15,7 @@ import csv
 from copy import deepcopy
 import numpy as np
 import models_hub
+from glob import glob
 
 logger = logging.getLogger(__name__)
 
@@ -82,7 +83,7 @@ def return_feat_ext_output(feat_ext, bim, load_ref):
     else:
         inp = feat_ext(bim.to(device))
     out_ = inp.argmax(dim=1).unsqueeze(1).float()
-    logger.info(out_)
+    logger.info(out_.permute(1,0))
     return out_
 
 def load_drd(ddetector_dts: DataLoader, dd_type:  str = "mmd", load_ref=False):
@@ -113,28 +114,33 @@ def load_drd(ddetector_dts: DataLoader, dd_type:  str = "mmd", load_ref=False):
 
     return feat_ext, ddetect
 
-def load_lstm_drift(train_dts: DataLoader, num_epochs: int = 5, out_size: int = 2):
+def load_lstm_drift(num_epochs: int = 30, out_size: int = 2):
 
     model_type = "lstm"
     model = LSTM_drift(emb_size=128, 
-                       hid_size=50, 
+                       hid_size=30, 
                        num_layers=2,
                        class_out_size=out_size).to(device)
     
     if not os.path.exists("drd_{}.pth".format(model_type)):
 
+        kadid_paths = glob("kadid10k/images/I*")
+        train_d =  kadid10k(kadid_paths)
+    
         criterion = nn.MSELoss()
         optimizer = optim.Adam(model.parameters(), lr=0.001)
-        for _ in tqdm(range(num_epochs), desc="Epoch", position=0):
+        for _ in tqdm(range(num_epochs), desc="LSTM Epoch", position=0):
             model.train()
             running_loss = 0.0
+            train_dts = DataLoader(train_d, batch_size=32, shuffle=True)
+
             for bimages, labels in tqdm(train_dts,desc="#b",position=1,leave=False):
+                # Accepting quality 0,1 as good !!!
                 labels = torch.where(labels>1, 1, 0)
 
                 outputs = model(bimages.to(device))
 
                 labels = torch.nn.functional.one_hot(labels.long(), out_size)
-
                 loss = criterion(outputs.to(device), labels.float().to(device))
                 loss.backward()
                 optimizer.step()
@@ -221,7 +227,7 @@ if __name__ == "__main__":
     model_drd, ddetect = load_drd(ddetector_dts=rdet, load_ref=lf)
      
     # LOAD ARNIQA+ KADID10K LSTM
-    model_lstm = load_lstm_drift(train_dts=rdet)
+    model_lstm = load_lstm_drift()
 
     all_drift_p_values = []
     mean_iqscore_values = []
@@ -323,7 +329,7 @@ data = [
         'ref_dataset':ref_dataset, 
         'distortion_type': distortion[0],
         'method': 'mmd-drift', 
-        'window': window_size,
+        'window': window_size*(1.0-sparsity),
         'seed': args.seed,
         'precision':precision_score(drift_tar, drift_pred), 
         'recall': recall_score(drift_tar, drift_pred), 
@@ -334,7 +340,7 @@ data = [
         'ref_dataset':ref_dataset, 
         'distortion_type': distortion[0],
         'method': 'arniqa-mean', 
-        'window': window_size,
+        'window': window_size*(1.0-sparsity),
         'seed': args.seed,
         'precision':precision_score(poor_quality_tar, poor_quality_pred), 
         'recall': recall_score(poor_quality_tar, poor_quality_pred), 
@@ -345,7 +351,7 @@ data = [
         'ref_dataset':ref_dataset, 
         'distortion_type': distortion[0],
         'method': 'lstm-drift', 
-        'window': window_size,
+        'window': window_size*(1.0-sparsity),
         'seed': args.seed,
         'precision':precision_score(lstm_drift_tar, lstm_drift_pred), 
         'recall': recall_score(lstm_drift_tar, lstm_drift_pred), 
