@@ -86,18 +86,18 @@ def return_feat_ext_output(feat_ext, bim, load_ref):
     logger.info(out_.permute(1,0))
     return out_
 
-def load_drd(ddetector_dts: DataLoader, dd_type:  str = "mmd", load_ref=False):
+def load_drd(ddetector_dts: DataLoader, dd_type:  str = "mmd", load_ref=False, seed=42):
 
     ddetect = drift_detector(detector=dd_type)
     
-    if not load_ref or not os.path.exists("ref_model.pth"):
+    if not load_ref or not os.path.exists("ref_model_seed_{}.pth".format(seed)):
         logger.info("DRIFT DETECT: ref model NOT FOUND/NOT REQUESTED")
         model = ARNIQA().encoder.to(device)
         feat_ext = torch.nn.Sequential(deepcopy(model)).eval().to(device)
     else:
         logger.info("DRIFT DETECT: ref model LOADED")
         model = models_hub.ResNet18(head_dim=10).to(device)
-        model.load_state_dict(torch.load("ref_model.pth"))
+        model.load_state_dict(torch.load("ref_model_seed_{}.pth".format(seed)))
         feat_ext = torch.nn.Sequential(deepcopy(model)).eval().to(device)
 
     
@@ -188,7 +188,7 @@ if __name__ == "__main__":
     parser.add_argument('--test-dataset', type=str, help=dataset_list)
     parser.add_argument('--ref-dataset', type=str, help=dataset_list)
     parser.add_argument('--seed', type=int, help='define numpy/pytorch seed for reproducible results', default=42)
-    parser.add_argument('--batch-size', type=int, help='define batch size for training/referencing/testing', default=16)
+    parser.add_argument('--batch-size', type=int, help='define batch size for training/referencing/testing', default=24)
     parser.add_argument('--window', type=int, help='corruption window, if >0 the window is the last half of the testing dataset', default=0)
     parser.add_argument('--window-sparsity', type=float, help='amount of distortion within an window in the form of percent [0.0, 1.0]', default=0.0)
     parser.add_argument('--distortion-type', type=str, help=distortion_list, default="white_noise")
@@ -224,7 +224,7 @@ if __name__ == "__main__":
 
     # LOAD ARNIQA+DRIFT DETECTOR
     lf=True
-    model_drd, ddetect = load_drd(ddetector_dts=rdet, load_ref=lf)
+    model_drd, ddetect = load_drd(ddetector_dts=rdet, load_ref=lf, seed=args.seed)
      
     # LOAD ARNIQA+ KADID10K LSTM
     model_lstm = load_lstm_drift()
@@ -272,6 +272,7 @@ if __name__ == "__main__":
             logging.info("drift p-val:{}".format(pv))
             logging.info("mean_iq:{}, ref:{}".format(meaniq, ref_mean))
             logging.info("lstm_mean:{}".format(lstm_mean.item()))
+            logging.info("Target ISCOR:{}".format(torch.where(labels>0, 1, 0).sum() > labels.shape[0]//2))
             logging.info("---------")
 
             # CALCULATE PRED STATS FOR DRIFT

@@ -2,7 +2,7 @@ import pandas as pd
 
 
 stats_df = pd.read_csv('stats.csv')  
-
+print(stats_df)
 stats_df["test_dataset"] = stats_df["test_dataset"].astype('string')
 stats_df["test_dataset"] = stats_df["test_dataset"].str.strip("[]")
 stats_df["test_dataset"] = stats_df["test_dataset"].str.replace(", ", "_")
@@ -17,8 +17,10 @@ stats_df["precision"] = stats_df["precision"].round(3)
 stats_df["recall"] = stats_df["recall"].round(3)
 stats_df["f1"] = stats_df["f1"].round(3)
 
-df1 = stats_df[(stats_df.test_dataset == "zurich_inspection") & (stats_df.window == 0.0)][["method","distortion_type","precision","recall","f1"]]
-print(df1)
+for dt in ["zurich_inspection", "factory_inspection", "traffic_inspection"]:
+    for mt in ["lstm-drift", "arniqa-mean", "mmd-drift"]:
+        df1 = stats_df[(stats_df.test_dataset == dt) & (stats_df.method == mt)][["method","distortion_type","precision","recall","f1"]]
+        print(df1)
 
 # plt.subplot(3, 1, 1)
 # plt.title(dataset)

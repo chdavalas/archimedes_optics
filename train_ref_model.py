@@ -21,7 +21,7 @@ logging.basicConfig(
 
 device = torch.device("cuda") if torch.cuda.is_available() else "cpu"
 
-def init_train_dataloaders(dataset_name_split, batch_size=32, window_size=0, 
+def init_train_dataloaders(dataset_name_split, batch_size=64, window_size=0, 
                      shuffle=False, drop_last=True, distort=False, 
                      num_windows=1, dist_sparsity=0.0, dstr=["white_noise"]):
 
@@ -55,7 +55,7 @@ def init_train_dataloaders(dataset_name_split, batch_size=32, window_size=0,
     return _loader
 
 
-def create_ref_model(dataset_name_split, distortions, dsp, num_epochs=50, dim=10, window=100):
+def create_ref_model(dataset_name_split, distortions, dsp, num_epochs=50, dim=10, window=100, seed=42):
     device = torch.device("cuda") if torch.cuda.is_available() else "cpu"
     
     model = models_hub.ResNet18(head_dim=dim).to(device)
@@ -63,24 +63,27 @@ def create_ref_model(dataset_name_split, distortions, dsp, num_epochs=50, dim=10
     criterion = nn.CrossEntropyLoss()
     optimizer = optim.Adam(model.parameters(), lr=0.0001)
     
-    for _ in tqdm(range(num_epochs), desc="Epoch", position=0):
-        model.train()
-        running_loss = 0.0
-        train_dts = init_train_dataloaders(dataset_name_split=dataset_name_split, 
-                                        dstr=distortions, 
-                                        dist_sparsity=dsp, 
-                                        shuffle=True, distort=True, window_size=window)
+    if not os.path.exists("ref_model_seed_{}.pth".format(seed)):
+        for _ in tqdm(range(num_epochs), desc="Epoch", position=0):
+            model.train()
+            running_loss = 0.0
+            train_dts = init_train_dataloaders(dataset_name_split=dataset_name_split, 
+                                            dstr=distortions, 
+                                            dist_sparsity=dsp, 
+                                            shuffle=True, distort=True, window_size=window)
 
-        for images, labels in tqdm(train_dts, desc="batch", position=1, leave=False):
-            optimizer.zero_grad()
-            outputs = model(images.to(device))
-            loss = criterion(outputs, labels.to(device).long())
-            loss.backward()
-            optimizer.step()
-            running_loss += loss.item()
-        logger.info(f"Loss: {running_loss/len(train_dts):.4f}")
+            for images, labels in tqdm(train_dts, desc="batch", position=1, leave=False):
+                optimizer.zero_grad()
+                outputs = model(images.to(device))
+                loss = criterion(outputs, labels.to(device).long())
+                loss.backward()
+                optimizer.step()
+                running_loss += loss.item()
+            logger.info(f"Loss: {running_loss/len(train_dts):.4f}")
 
-        torch.save(model.state_dict(), "ref_model.pth")
+            torch.save(model.state_dict(), "ref_model_seed_{}.pth".format(seed))
+    else:
+        logger.info("REF model exists!!!")
 
     return model.eval()
 
@@ -109,7 +112,7 @@ if __name__ == "__main__":
     parser.add_argument('--ref-dataset', type=str, help=dataset_list)
     parser.add_argument('--seed', type=int, help='define numpy/pytorch seed for reproducible results', default=42)
     parser.add_argument('--num-epochs', type=int, help='train epochs for reference model', default=100)
-    parser.add_argument('--distortion-type', type=str, help=distortion_list, default="white_noise,lens_blur,gaussian_blur,darken")
+    parser.add_argument('--distortion-type', type=str, help=distortion_list, default="white_noise,lens_blur,gaussian_blur")
     parser.add_argument('--window-sparsity', type=float, help='amount of distortion within an window in the form of percent [0.0, 1.0]', default=0.15)
     parser.add_argument('--window', type=int, help='distortion window', default=200)
 
@@ -121,4 +124,4 @@ if __name__ == "__main__":
     if len(ref_dataset)==2: ref_dataset.insert(1, '0')
 
     distortion = args.distortion_type.split(',')
-    create_ref_model(ref_dataset, num_epochs=args.num_epochs, distortions=distortion, dsp=args.window_sparsity, window=args.window)
+    create_ref_model(ref_dataset, num_epochs=args.num_epochs, distortions=distortion, dsp=args.window_sparsity, window=args.window, seed=args.seed)
