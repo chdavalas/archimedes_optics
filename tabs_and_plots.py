@@ -1,8 +1,7 @@
 import pandas as pd
+import matplotlib.pyplot as plt
 
-
-stats_df = pd.read_csv('stats.csv')  
-print(stats_df)
+stats_df = pd.read_csv('stats.csv')
 stats_df["test_dataset"] = stats_df["test_dataset"].astype('string')
 stats_df["test_dataset"] = stats_df["test_dataset"].str.strip("[]")
 stats_df["test_dataset"] = stats_df["test_dataset"].str.replace(", ", "_")
@@ -17,10 +16,16 @@ stats_df["precision"] = stats_df["precision"].round(3)
 stats_df["recall"] = stats_df["recall"].round(3)
 stats_df["f1"] = stats_df["f1"].round(3)
 
-for dt in ["zurich_inspection", "factory_inspection", "traffic_inspection"]:
-    for mt in ["lstm-drift", "arniqa-mean", "mmd-drift"]:
-        df1 = stats_df[(stats_df.test_dataset == dt) & (stats_df.method == mt)][["method","distortion_type","precision","recall","f1"]]
-        print(df1)
+smaller_df = stats_df[["test_dataset","method","distortion_type","precision","recall","f1"]]
+df_mean = smaller_df.groupby(["test_dataset", "method", "distortion_type"]).mean().round(3)
+df_mean = df_mean.rename(columns={'precision':'precision_mean', 'f1':'f1_mean', 'recall':'recall_mean'})
+
+df_stdv = smaller_df.groupby(["test_dataset", "method", "distortion_type"]).std().round(3)
+df_stdv = df_stdv.rename(columns={'precision':'precision_stdv', 'f1':'f1_stdv', 'recall':'recall_stdv'})
+
+df = pd.concat([df_mean, df_stdv], axis=1)
+df = df[['precision_mean','precision_stdv','recall_mean','recall_stdv','f1_mean','f1_stdv']]
+plt.show()
 
 # plt.subplot(3, 1, 1)
 # plt.title(dataset)
