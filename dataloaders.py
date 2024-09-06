@@ -8,7 +8,7 @@ import distortions as dstr_all
 import sys
 
 # dstr = [
-#     'gaussian_blur', 'motion_blur', 'brighten', 'color_block', 'color_diffusion', 
+#     'gaussian_blur', 'blackout', 'motion_blur', 'brighten', 'color_block', 'color_diffusion', 
 #     'color_saturation1', 'color_saturation2', 'color_shift', 
 #     'darken', 'decode_jpeg', 'encode_jpeg', 
 #     'high_sharpen', 'impulse_noise', 
@@ -36,15 +36,18 @@ class VideoFootage(Dataset):
         self.window = window
         self.distort = distort
         if self.distort:
+            dist_choices = [i for i in self.transforms.keys()]
             if window==0:
                 self.window = self.__len__()-(self.__len__()//2)
                 self.tape = [ x for x in range(self.__len__()//2, self.__len__())]
-                dist_choices = np.random.choice([i for i in self.transforms.keys()], num_windows)
-                self.dist_choice = sorted(np.repeat(dist_choices, self.__len__()-(self.__len__()//2)))
+                while len(dist_choices)<self.__len__()-(self.__len__()//2):
+                    dist_choices += [i for i in self.transforms.keys()]
+                self.dist_choice = dist_choices[:self.__len__()-(self.__len__()//2)]
             else:
                 self.num_windows = num_windows
-                dist_choices = np.random.choice([i for i in self.transforms.keys()], num_windows)
-                self.dist_choice = sorted(np.repeat(dist_choices, window))
+                while len(dist_choices)<window:
+                    dist_choices += [i for i in self.transforms.keys()]
+                self.dist_choice = dist_choices[:window]
                 if tape!=[]:
                     self.tape = tape
                 else:
@@ -53,27 +56,35 @@ class VideoFootage(Dataset):
                     self.tape = []
                     for win_st in random_window_start:
                         self.tape.extend(all_idx[win_st:win_st+self.window])
-
             if dist_sparsity!=0.0:
                 rm_amount = int(window*dist_sparsity)
                 self.tape = np.random.choice([ x for x in self.tape], self.window-rm_amount)
         
+            self.dist_map = {id_x:id_dist for id_x,id_dist in zip(self.tape,self.dist_choice)}
+
     def __len__(self):
         return len(self.image_paths)
+
+    def get_window(self):
+        return self.tape
 
     def __getitem__(self, idx):
 
         image = Image.open(self.image_paths[idx])
 
         preproc = T.Compose([
-            T.CenterCrop(size=min(image.size[1:])),
+            # 720*720
+            #T.CenterCrop(size=min(image.size[1:])),
+
+            # The usual image size for ARNIQA -- using min(H,W) is too much !!!
+            T.CenterCrop(size=384),
             T.ToImage(), T.ToDtype(torch.float32, scale=True),
             T.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
         ])
 
         image = preproc(image)
         if self.distort and idx in self.tape:
-            dist_idx = self.dist_choice.pop()
+            dist_idx = self.dist_map[idx]
             image = self.transforms[dist_idx](image)
             label = torch.tensor(dist_idx+1)
         else:

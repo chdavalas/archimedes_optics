@@ -58,7 +58,7 @@ def init_dataloaders(dataset_name_split, batch_size=32, window_size=100,
 
     _loader = DataLoader(_dataset, batch_size=batch_size, shuffle=shuffle, drop_last=drop_last)
 
-    return _loader
+    return _dataset, _loader
 
 
 def load_arniqa_model(ddetector_dts: DataLoader, regr_dt: str = "kadid10k"):
@@ -177,7 +177,7 @@ if __name__ == "__main__":
     'color_saturation1', 'color_saturation2', 'color_shift', 
     'darken', 'decode_jpeg', 'encode_jpeg', 
     'high_sharpen', 'impulse_noise', 
-    'jitter', 'jpeg', 'jpeg2000', 
+    'jitter', 'jpeg', 'jpeg2000', 'blackout',
     'lens_blur', 'linear_contrast_change', 'mean_shift', 
     'multiplicative_noise', 'non_eccentricity_patch', 
     'non_linear_contrast_change', 'pixelate', 'quantization', 
@@ -208,16 +208,15 @@ if __name__ == "__main__":
     np.random.seed(seed=args.seed)
     
     # INIT DATASETS
-    test = init_dataloaders(
+    test_ds, test = init_dataloaders(
         dataset_name_split=test_dataset, batch_size=global_batch_size, window_size=window_size, 
         dstr=distortion, distort=True, dist_sparsity=sparsity)
     
-    rdet = init_dataloaders(
+    _, rdet = init_dataloaders(
         dataset_name_split=ref_dataset, batch_size=global_batch_size, shuffle=True)
 
-    lstm_dist = "gaussian_blur,white_noise,motion_blur".split(',')
-    train = init_dataloaders(
-        dataset_name_split=ref_dataset, batch_size=global_batch_size, shuffle=True, distort=False, window_size=0, dstr=lstm_dist)
+    # _, train = init_dataloaders(
+    #     dataset_name_split=ref_dataset, batch_size=global_batch_size, shuffle=True, distort=False, window_size=0, dstr=distortion)
 
     # LOAD ARNIQA
     model_arniqa, ref_mean = load_arniqa_model(rdet)
@@ -242,13 +241,20 @@ if __name__ == "__main__":
     lstm_drift_pred = []
     lstm_drift_tar = []
 
+    win_start = 0
+    win_count = 0
+    flag = True
     test_dts_with_status_ = tqdm(test, desc="Test", position=0)
     with torch.no_grad():
         im_passed = []; idx=0
-        for bimages, labels in test_dts_with_status_:
+        for i, (bimages, labels) in enumerate(test_dts_with_status_):
             classes_, cl_count= torch.unique(labels, sorted=True, return_counts=True)
             if classes_.tolist()[-1]!=0:
                 status_ = "CORR"
+                if flag:
+                    win_start = i
+                    flag = False
+                win_count +=1
             else:
                 status_ = "OK"
             logging.info("status: {}, classes: {}, freq: {}".format(status_, classes_.tolist(), cl_count.tolist()))
@@ -329,9 +335,10 @@ data = [
         'test_dataset':test_dataset, 
         'ref_dataset':ref_dataset, 
         'distortion_type': distortion[0],
-        'method': 'mmd-drift', 
-        'window': window_size*(1.0-sparsity),
+        'method': 'mmd-drift',
         'seed': args.seed,
+        'window_tape':[win_start, win_start+win_count],
+        'window': window_size*(1.0-sparsity),
         'precision':precision_score(drift_tar, drift_pred), 
         'recall': recall_score(drift_tar, drift_pred), 
         'f1':f1_score(drift_tar, drift_pred)
@@ -341,8 +348,9 @@ data = [
         'ref_dataset':ref_dataset, 
         'distortion_type': distortion[0],
         'method': 'arniqa-mean', 
-        'window': window_size*(1.0-sparsity),
         'seed': args.seed,
+        'window': window_size*(1.0-sparsity),
+        'window_tape':[win_start, win_start+win_count],
         'precision':precision_score(poor_quality_tar, poor_quality_pred), 
         'recall': recall_score(poor_quality_tar, poor_quality_pred), 
         'f1':f1_score(poor_quality_tar, poor_quality_pred)
@@ -352,8 +360,9 @@ data = [
         'ref_dataset':ref_dataset, 
         'distortion_type': distortion[0],
         'method': 'lstm-drift', 
-        'window': window_size*(1.0-sparsity),
         'seed': args.seed,
+        'window': window_size*(1.0-sparsity),
+        'window_tape':[win_start, win_start+win_count],
         'precision':precision_score(lstm_drift_tar, lstm_drift_pred), 
         'recall': recall_score(lstm_drift_tar, lstm_drift_pred), 
         'f1':f1_score(lstm_drift_tar, lstm_drift_pred)
@@ -363,12 +372,12 @@ data = [
 
 if os.path.exists('stats.csv'):
     with open('stats.csv', 'a', newline='') as csvfile:
-        header_name = ['test_dataset', 'ref_dataset',  'distortion_type', 'method','window', 'seed', 'precision', 'recall', 'f1']
+        header_name = ['test_dataset', 'ref_dataset',  'distortion_type', 'method','seed','window','window_tape', 'precision', 'recall', 'f1']
         writer = csv.DictWriter(csvfile, fieldnames=header_name)
         writer.writerows(data)
 else:
     with open('stats.csv', 'w', newline='') as csvfile:
-        header_name = ['test_dataset', 'ref_dataset',  'distortion_type', 'method','window', 'seed', 'precision', 'recall', 'f1']
+        header_name = ['test_dataset', 'ref_dataset',  'distortion_type', 'method','seed','window','window_tape', 'precision', 'recall', 'f1']
         writer = csv.DictWriter(csvfile, fieldnames=header_name)
         writer.writeheader()
         writer.writerows(data)

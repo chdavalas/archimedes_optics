@@ -19,6 +19,10 @@ from utils_distortions import fspecial, filter2D, curves, imscatter, mapmm
 
 #From https://github.com/miccunifi/ARNIQA
 
+def blackout(x: torch.Tensor):
+    return torch.zeros(x.size())
+
+
 def gaussian_blur(x: torch.Tensor, blur_sigma: int = 10) -> torch.Tensor:
     fs = 2 * math.ceil(2 * blur_sigma) + 1
     h = fspecial('gaussian', (fs, fs), blur_sigma)
@@ -42,7 +46,7 @@ def lens_blur(x: torch.Tensor, radius: int=15) -> torch.Tensor:
     return y
 
 
-def motion_blur(x: torch.Tensor, radius: int=15, angle: bool = None) -> torch.Tensor:
+def motion_blur(x: torch.Tensor, radius: int=50, angle: bool = None) -> torch.Tensor:
     if angle is None:
         angle = random.randint(0, 180)
     h = fspecial('motion', radius, angle)
@@ -330,7 +334,7 @@ def quantization(x: torch.Tensor, levels: int = 5) -> torch.Tensor:
     return image
 
 
-def color_block(x: torch.Tensor, pnum: int = 5) -> torch.Tensor:
+def color_block(x: torch.Tensor, pnum: int = 4) -> torch.Tensor:
     patch_size = [32, 32]
 
     c, w, h = x.shape

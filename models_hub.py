@@ -112,7 +112,7 @@ class ResNet18(nn.Module):
         self.head = nn.Sequential(nn.Linear(self.feat_dim, self.head))
 
     def forward(self, x):
-        x = T.Resize((256,256))(x)
+        # x = T.Resize((224,224))(x)
         f = self.model(x)
         g = self.head(f.squeeze())
         return g

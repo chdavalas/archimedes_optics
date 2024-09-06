@@ -61,25 +61,42 @@ def create_ref_model(dataset_name_split, distortions, dsp, num_epochs=50, dim=10
     model = models_hub.ResNet18(head_dim=dim).to(device)
 
     criterion = nn.CrossEntropyLoss()
-    optimizer = optim.Adam(model.parameters(), lr=0.0001)
+    optimizer = optim.Adam(model.parameters(), lr=0.001)
     
-    if not os.path.exists("ref_model_seed_{}.pth".format(seed)):
-        for _ in tqdm(range(num_epochs), desc="Epoch", position=0):
-            model.train()
-            running_loss = 0.0
-            train_dts = init_train_dataloaders(dataset_name_split=dataset_name_split, 
+    val_dts = init_train_dataloaders(dataset_name_split=[dataset_name_split[0],0,100], 
                                             dstr=distortions, 
                                             dist_sparsity=dsp, 
-                                            shuffle=True, distort=True, window_size=window)
+                                            shuffle=True, distort=True, window_size=75)
 
-            for images, labels in tqdm(train_dts, desc="batch", position=1, leave=False):
+    if not os.path.exists("ref_model_seed_{}.pth".format(seed)):
+        for i in enumerate(tqdm(range(num_epochs), desc="Epoch", position=0)):
+            model.train()
+            running_loss = 0.0
+            running_val_loss = 0.0
+            rem = int((len(os.listdir(dataset_name_split[0]))-100)*0.75)
+            train_dts = init_train_dataloaders(dataset_name_split=[dataset_name_split[0],100,0], 
+                                            dstr=distortions, 
+                                            dist_sparsity=0.0, 
+                                            shuffle=True, distort=True, window_size=rem)
+
+            for images, labels in tqdm(train_dts, desc="train batch", position=1, leave=False):
                 optimizer.zero_grad()
                 outputs = model(images.to(device))
                 loss = criterion(outputs, labels.to(device).long())
                 loss.backward()
                 optimizer.step()
                 running_loss += loss.item()
-            logger.info(f"Loss: {running_loss/len(train_dts):.4f}")
+
+            for images, labels in tqdm(val_dts, desc="test batch", position=2, leave=False):
+                optimizer.zero_grad()
+                outputs = model(images.to(device))
+                loss = criterion(outputs, labels.to(device).long())
+                loss.backward()
+                optimizer.step()
+                running_val_loss += loss.item()
+
+            logger.info(f"Train Loss: {running_loss/len(train_dts):.4f}")
+            logger.info(f"Val Loss: {running_val_loss/len(val_dts):.4f}")
 
             torch.save(model.state_dict(), "ref_model_seed_{}.pth".format(seed))
     else:
@@ -97,7 +114,7 @@ if __name__ == "__main__":
     OR dashcam_inspection,200,0 (same as dashcam_inspetion,200,len(dashcam_inspection))'''
     
     distortion_list=''' choose between:
-    'gaussian_blur', 'motion_blur', 'brighten', 'color_block', 'color_diffusion', 
+    'gaussian_blur', 'blackout', 'motion_blur', 'brighten', 'color_block', 'color_diffusion', 
     'color_saturation1', 'color_saturation2', 'color_shift', 
     'darken', 'decode_jpeg', 'encode_jpeg', 
     'high_sharpen', 'impulse_noise', 
@@ -112,9 +129,9 @@ if __name__ == "__main__":
     parser.add_argument('--ref-dataset', type=str, help=dataset_list)
     parser.add_argument('--seed', type=int, help='define numpy/pytorch seed for reproducible results', default=42)
     parser.add_argument('--num-epochs', type=int, help='train epochs for reference model', default=100)
-    parser.add_argument('--distortion-type', type=str, help=distortion_list, default="white_noise,lens_blur,gaussian_blur")
-    parser.add_argument('--window-sparsity', type=float, help='amount of distortion within an window in the form of percent [0.0, 1.0]', default=0.15)
-    parser.add_argument('--window', type=int, help='distortion window', default=200)
+    parser.add_argument('--distortion-type', type=str, help=distortion_list, default="motion_blur,lens_blur,blackout")
+    parser.add_argument('--window-sparsity', type=float, help='amount of distortion within an window in the form of percent [0.0, 1.0]', default=0.0)
+    parser.add_argument('--window', type=int, help='distortion window', default=0)
 
     args = parser.parse_args()
     torch.manual_seed(args.seed)
