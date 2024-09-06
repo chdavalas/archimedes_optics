@@ -1,5 +1,6 @@
 import pandas as pd
 import matplotlib.pyplot as plt
+from tabulate import tabulate
 
 stats_df = pd.read_csv('stats.csv')
 stats_df["test_dataset"] = stats_df["test_dataset"].astype('string')
@@ -24,8 +25,9 @@ df_stdv = smaller_df.groupby(["test_dataset", "method", "distortion_type"]).std(
 df_stdv = df_stdv.rename(columns={'precision':'precision_stdv', 'f1':'f1_stdv', 'recall':'recall_stdv'})
 
 df = pd.concat([df_mean, df_stdv], axis=1)
-df = df[['precision_mean','precision_stdv','recall_mean','recall_stdv','f1_mean','f1_stdv']]
-plt.show()
+headers = ['precision_mean','precision_stdv','recall_mean','recall_stdv','f1_mean','f1_stdv']
+df = df[headers]
+print(tabulate(df,headers=headers, tablefmt="latex_raw"))
 
 # plt.subplot(3, 1, 1)
 # plt.title(dataset)
