@@ -370,6 +370,12 @@ data = [
 
 ]
 
+with open('diagnostic_values.csv', 'w', newline='') as csvfile:
+    writer = csv.writer(csvfile, delimiter=',', quoting=csv.QUOTE_MINIMAL)
+    writer.writerow(["drift_p_val", "mean_image_quality", "lstm_drift detect", "iqref", "driftref", "lstmref", "window_tape"])
+    for dr,iq,ls in zip(all_drift_p_values, mean_iqscore_values, all_lstm_mean_values):
+        writer.writerow([dr, iq, ls, ref_mean, 0.05, 0.5, [win_start, win_start+win_count]])
+    
 if os.path.exists('stats.csv'):
     with open('stats.csv', 'a', newline='') as csvfile:
         header_name = ['test_dataset', 'ref_dataset',  'distortion_type', 'method','seed','window','window_tape', 'precision', 'recall', 'f1']

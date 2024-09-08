@@ -1,0 +1,308 @@
+INFO:name:zurich_inspection, total frames:681 from 0 to 681
+INFO:name:interlaken_inspection, total frames:100 from 100 to 200
+INFO:DRIFT DETECT: ref model LOADED
+INFO:tensor([[0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0.]],
+       device='cuda:0')
+INFO:tensor([[0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0.]],
+       device='cuda:0')
+INFO:tensor([[0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0.]],
+       device='cuda:0')
+INFO:tensor([[0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0.]],
+       device='cuda:0')
+INFO:load from dir
+INFO:status: OK, classes: [0], freq: [24]
+INFO:tensor([[0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0.]],
+       device='cuda:0')
+INFO:drift distance/threshold: 5.960464477539063e-08/5.960464477539063e-08
+INFO:---------
+INFO:drift p-val:1.0
+INFO:mean_iq:0.43903860449790955, ref:0.3890380859375
+INFO:lstm_mean:1.0
+INFO:Target ISCOR:False
+INFO:---------
+INFO:status: OK, classes: [0], freq: [24]
+INFO:tensor([[0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0.]],
+       device='cuda:0')
+INFO:drift distance/threshold: 5.960464477539063e-08/5.960464477539063e-08
+INFO:---------
+INFO:drift p-val:1.0
+INFO:mean_iq:0.44008511304855347, ref:0.3890380859375
+INFO:lstm_mean:1.0
+INFO:Target ISCOR:False
+INFO:---------
+INFO:status: OK, classes: [0], freq: [24]
+INFO:tensor([[0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0.]],
+       device='cuda:0')
+INFO:drift distance/threshold: 5.960464477539063e-08/5.960464477539063e-08
+INFO:---------
+INFO:drift p-val:1.0
+INFO:mean_iq:0.6045975685119629, ref:0.3890380859375
+INFO:lstm_mean:0.7916666865348816
+INFO:Target ISCOR:False
+INFO:---------
+INFO:status: OK, classes: [0], freq: [24]
+INFO:tensor([[0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0.]],
+       device='cuda:0')
+INFO:drift distance/threshold: 5.960464477539063e-08/5.960464477539063e-08
+INFO:---------
+INFO:drift p-val:1.0
+INFO:mean_iq:0.5420316457748413, ref:0.3890380859375
+INFO:lstm_mean:0.875
+INFO:Target ISCOR:False
+INFO:---------
+INFO:status: OK, classes: [0], freq: [24]
+INFO:tensor([[0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0.]],
+       device='cuda:0')
+INFO:drift distance/threshold: 5.960464477539063e-08/5.960464477539063e-08
+INFO:---------
+INFO:drift p-val:1.0
+INFO:mean_iq:0.5349738001823425, ref:0.3890380859375
+INFO:lstm_mean:0.5833333730697632
+INFO:Target ISCOR:False
+INFO:---------
+INFO:status: OK, classes: [0], freq: [24]
+INFO:tensor([[0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0.]],
+       device='cuda:0')
+INFO:drift distance/threshold: 5.960464477539063e-08/5.960464477539063e-08
+INFO:---------
+INFO:drift p-val:1.0
+INFO:mean_iq:0.5764349699020386, ref:0.3890380859375
+INFO:lstm_mean:0.5
+INFO:Target ISCOR:False
+INFO:---------
+INFO:status: OK, classes: [0], freq: [24]
+INFO:tensor([[0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0.]],
+       device='cuda:0')
+INFO:drift distance/threshold: 5.960464477539063e-08/5.960464477539063e-08
+INFO:---------
+INFO:drift p-val:1.0
+INFO:mean_iq:0.5991058349609375, ref:0.3890380859375
+INFO:lstm_mean:0.9583333730697632
+INFO:Target ISCOR:False
+INFO:---------
+INFO:status: OK, classes: [0], freq: [24]
+INFO:tensor([[0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0.]],
+       device='cuda:0')
+INFO:drift distance/threshold: 5.960464477539063e-08/5.960464477539063e-08
+INFO:---------
+INFO:drift p-val:1.0
+INFO:mean_iq:0.5970284938812256, ref:0.3890380859375
+INFO:lstm_mean:0.9166666865348816
+INFO:Target ISCOR:False
+INFO:---------
+INFO:status: OK, classes: [0], freq: [24]
+INFO:tensor([[0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0.]],
+       device='cuda:0')
+INFO:drift distance/threshold: 5.960464477539063e-08/5.960464477539063e-08
+INFO:---------
+INFO:drift p-val:1.0
+INFO:mean_iq:0.6127261519432068, ref:0.3890380859375
+INFO:lstm_mean:0.875
+INFO:Target ISCOR:False
+INFO:---------
+INFO:status: OK, classes: [0], freq: [24]
+INFO:tensor([[0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0.]],
+       device='cuda:0')
+INFO:drift distance/threshold: 5.960464477539063e-08/5.960464477539063e-08
+INFO:---------
+INFO:drift p-val:1.0
+INFO:mean_iq:0.5905451774597168, ref:0.3890380859375
+INFO:lstm_mean:1.0
+INFO:Target ISCOR:False
+INFO:---------
+INFO:status: OK, classes: [0], freq: [24]
+INFO:tensor([[0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0.]],
+       device='cuda:0')
+INFO:drift distance/threshold: 5.960464477539063e-08/5.960464477539063e-08
+INFO:---------
+INFO:drift p-val:1.0
+INFO:mean_iq:0.6320766806602478, ref:0.3890380859375
+INFO:lstm_mean:1.0
+INFO:Target ISCOR:False
+INFO:---------
+INFO:status: CORR, classes: [0, 1], freq: [12, 12]
+INFO:tensor([[0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 3., 3., 3., 3., 3., 3.,
+         3., 3., 3., 3., 3., 3.]], device='cuda:0')
+INFO:drift distance/threshold: 0.17594274878501892/0.010649144649505615
+INFO:---------
+INFO:drift p-val:0.0
+INFO:mean_iq:0.4106491506099701, ref:0.3890380859375
+INFO:lstm_mean:1.0
+INFO:Target ISCOR:False
+INFO:---------
+INFO:status: CORR, classes: [1], freq: [24]
+INFO:tensor([[3., 3., 3., 3., 3., 3., 3., 3., 3., 3., 3., 3., 3., 3., 3., 3., 3., 3.,
+         3., 3., 3., 3., 3., 3.]], device='cuda:0')
+INFO:drift distance/threshold: 0.7357601523399353/0.012253344058990479
+INFO:---------
+INFO:drift p-val:0.0
+INFO:mean_iq:0.1885986328125, ref:0.3890380859375
+INFO:lstm_mean:1.0
+INFO:Target ISCOR:True
+INFO:---------
+INFO:status: CORR, classes: [1], freq: [24]
+INFO:tensor([[3., 3., 3., 3., 3., 3., 3., 3., 3., 3., 3., 3., 3., 3., 3., 3., 3., 3.,
+         3., 3., 3., 3., 3., 3.]], device='cuda:0')
+INFO:drift distance/threshold: 0.7357601523399353/0.012253344058990479
+INFO:---------
+INFO:drift p-val:0.0
+INFO:mean_iq:0.1885986328125, ref:0.3890380859375
+INFO:lstm_mean:1.0
+INFO:Target ISCOR:True
+INFO:---------
+INFO:status: CORR, classes: [1], freq: [24]
+INFO:tensor([[3., 3., 3., 3., 3., 3., 3., 3., 3., 3., 3., 3., 3., 3., 3., 3., 3., 3.,
+         3., 3., 3., 3., 3., 3.]], device='cuda:0')
+INFO:drift distance/threshold: 0.7357601523399353/0.02613210678100586
+INFO:---------
+INFO:drift p-val:0.0
+INFO:mean_iq:0.1885986328125, ref:0.3890380859375
+INFO:lstm_mean:1.0
+INFO:Target ISCOR:True
+INFO:---------
+INFO:status: CORR, classes: [1], freq: [24]
+INFO:tensor([[3., 3., 3., 3., 3., 3., 3., 3., 3., 3., 3., 3., 3., 3., 3., 3., 3., 3.,
+         3., 3., 3., 3., 3., 3.]], device='cuda:0')
+INFO:drift distance/threshold: 0.7357601523399353/0.02613210678100586
+INFO:---------
+INFO:drift p-val:0.0
+INFO:mean_iq:0.1885986328125, ref:0.3890380859375
+INFO:lstm_mean:1.0
+INFO:Target ISCOR:True
+INFO:---------
+INFO:status: CORR, classes: [1], freq: [24]
+INFO:tensor([[3., 3., 3., 3., 3., 3., 3., 3., 3., 3., 3., 3., 3., 3., 3., 3., 3., 3.,
+         3., 3., 3., 3., 3., 3.]], device='cuda:0')
+INFO:drift distance/threshold: 0.7357601523399353/0.012253344058990479
+INFO:---------
+INFO:drift p-val:0.0
+INFO:mean_iq:0.1885986328125, ref:0.3890380859375
+INFO:lstm_mean:1.0
+INFO:Target ISCOR:True
+INFO:---------
+INFO:status: CORR, classes: [1], freq: [24]
+INFO:tensor([[3., 3., 3., 3., 3., 3., 3., 3., 3., 3., 3., 3., 3., 3., 3., 3., 3., 3.,
+         3., 3., 3., 3., 3., 3.]], device='cuda:0')
+INFO:drift distance/threshold: 0.7357601523399353/0.011835873126983643
+INFO:---------
+INFO:drift p-val:0.0
+INFO:mean_iq:0.1885986328125, ref:0.3890380859375
+INFO:lstm_mean:1.0
+INFO:Target ISCOR:True
+INFO:---------
+INFO:status: CORR, classes: [1], freq: [24]
+INFO:tensor([[3., 3., 3., 3., 3., 3., 3., 3., 3., 3., 3., 3., 3., 3., 3., 3., 3., 3.,
+         3., 3., 3., 3., 3., 3.]], device='cuda:0')
+INFO:drift distance/threshold: 0.7357601523399353/0.012253344058990479
+INFO:---------
+INFO:drift p-val:0.0
+INFO:mean_iq:0.1885986328125, ref:0.3890380859375
+INFO:lstm_mean:1.0
+INFO:Target ISCOR:True
+INFO:---------
+INFO:status: CORR, classes: [1], freq: [24]
+INFO:tensor([[3., 3., 3., 3., 3., 3., 3., 3., 3., 3., 3., 3., 3., 3., 3., 3., 3., 3.,
+         3., 3., 3., 3., 3., 3.]], device='cuda:0')
+INFO:drift distance/threshold: 0.7357601523399353/0.012253344058990479
+INFO:---------
+INFO:drift p-val:0.0
+INFO:mean_iq:0.1885986328125, ref:0.3890380859375
+INFO:lstm_mean:1.0
+INFO:Target ISCOR:True
+INFO:---------
+INFO:status: CORR, classes: [1], freq: [24]
+INFO:tensor([[3., 3., 3., 3., 3., 3., 3., 3., 3., 3., 3., 3., 3., 3., 3., 3., 3., 3.,
+         3., 3., 3., 3., 3., 3.]], device='cuda:0')
+INFO:drift distance/threshold: 0.7357601523399353/0.012253344058990479
+INFO:---------
+INFO:drift p-val:0.0
+INFO:mean_iq:0.1885986328125, ref:0.3890380859375
+INFO:lstm_mean:1.0
+INFO:Target ISCOR:True
+INFO:---------
+INFO:status: CORR, classes: [1], freq: [24]
+INFO:tensor([[3., 3., 3., 3., 3., 3., 3., 3., 3., 3., 3., 3., 3., 3., 3., 3., 3., 3.,
+         3., 3., 3., 3., 3., 3.]], device='cuda:0')
+INFO:drift distance/threshold: 0.7357601523399353/0.02613210678100586
+INFO:---------
+INFO:drift p-val:0.0
+INFO:mean_iq:0.1885986328125, ref:0.3890380859375
+INFO:lstm_mean:1.0
+INFO:Target ISCOR:True
+INFO:---------
+INFO:status: CORR, classes: [1], freq: [24]
+INFO:tensor([[3., 3., 3., 3., 3., 3., 3., 3., 3., 3., 3., 3., 3., 3., 3., 3., 3., 3.,
+         3., 3., 3., 3., 3., 3.]], device='cuda:0')
+INFO:drift distance/threshold: 0.7357601523399353/0.012253344058990479
+INFO:---------
+INFO:drift p-val:0.0
+INFO:mean_iq:0.1885986328125, ref:0.3890380859375
+INFO:lstm_mean:1.0
+INFO:Target ISCOR:True
+INFO:---------
+INFO:status: CORR, classes: [1], freq: [24]
+INFO:tensor([[3., 3., 3., 3., 3., 3., 3., 3., 3., 3., 3., 3., 3., 3., 3., 3., 3., 3.,
+         3., 3., 3., 3., 3., 3.]], device='cuda:0')
+INFO:drift distance/threshold: 0.7357601523399353/0.012253344058990479
+INFO:---------
+INFO:drift p-val:0.0
+INFO:mean_iq:0.1885986328125, ref:0.3890380859375
+INFO:lstm_mean:1.0
+INFO:Target ISCOR:True
+INFO:---------
+INFO:status: CORR, classes: [1], freq: [24]
+INFO:tensor([[3., 3., 3., 3., 3., 3., 3., 3., 3., 3., 3., 3., 3., 3., 3., 3., 3., 3.,
+         3., 3., 3., 3., 3., 3.]], device='cuda:0')
+INFO:drift distance/threshold: 0.7357601523399353/0.011835873126983643
+INFO:---------
+INFO:drift p-val:0.0
+INFO:mean_iq:0.1885986328125, ref:0.3890380859375
+INFO:lstm_mean:1.0
+INFO:Target ISCOR:True
+INFO:---------
+INFO:status: CORR, classes: [1], freq: [24]
+INFO:tensor([[3., 3., 3., 3., 3., 3., 3., 3., 3., 3., 3., 3., 3., 3., 3., 3., 3., 3.,
+         3., 3., 3., 3., 3., 3.]], device='cuda:0')
+INFO:drift distance/threshold: 0.7357601523399353/0.012253344058990479
+INFO:---------
+INFO:drift p-val:0.0
+INFO:mean_iq:0.1885986328125, ref:0.3890380859375
+INFO:lstm_mean:1.0
+INFO:Target ISCOR:True
+INFO:---------
+INFO:status: CORR, classes: [1], freq: [24]
+INFO:tensor([[3., 3., 3., 3., 3., 3., 3., 3., 3., 3., 3., 3., 3., 3., 3., 3., 3., 3.,
+         3., 3., 3., 3., 3., 3.]], device='cuda:0')
+INFO:drift distance/threshold: 0.7357601523399353/0.012253344058990479
+INFO:---------
+INFO:drift p-val:0.0
+INFO:mean_iq:0.1885986328125, ref:0.3890380859375
+INFO:lstm_mean:1.0
+INFO:Target ISCOR:True
+INFO:---------
+INFO:status: CORR, classes: [1], freq: [24]
+INFO:tensor([[3., 3., 3., 3., 3., 3., 3., 3., 3., 3., 3., 3., 3., 3., 3., 3., 3., 3.,
+         3., 3., 3., 3., 3., 3.]], device='cuda:0')
+INFO:drift distance/threshold: 0.7357601523399353/0.012253344058990479
+INFO:---------
+INFO:drift p-val:0.0
+INFO:mean_iq:0.1885986328125, ref:0.3890380859375
+INFO:lstm_mean:1.0
+INFO:Target ISCOR:True
+INFO:---------
+INFO:--------------------------------------------------
+INFO:Drift stats
+INFO:Precision:0.9411764705882353
+INFO:Recall:1.0
+INFO:F1:0.9696969696969697
+INFO:--------------------------------------------------
+INFO:IQA stats
+INFO:Precision:1.0
+INFO:Recall:1.0
+INFO:F1:1.0
+INFO:--------------------------------------------------
+INFO:LSTM stats
+INFO:Precision:0.5925925925925926
+INFO:Recall:1.0
+INFO:F1:0.7441860465116279
+INFO:--------------------------------------------------

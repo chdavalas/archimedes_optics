@@ -2,7 +2,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 from tabulate import tabulate
 
-stats_df = pd.read_csv('stats.csv')
+stats_df = pd.read_csv('stats.csv.stable')
 stats_df["test_dataset"] = stats_df["test_dataset"].astype('string')
 stats_df["test_dataset"] = stats_df["test_dataset"].str.strip("[]")
 stats_df["test_dataset"] = stats_df["test_dataset"].str.replace(", ", "_")
@@ -28,6 +28,15 @@ df = pd.concat([df_mean, df_stdv], axis=1)
 headers = ['precision_mean','precision_stdv','recall_mean','recall_stdv','f1_mean','f1_stdv']
 df = df[headers]
 print(tabulate(df,headers=headers, tablefmt="latex_raw"))
+
+fig, axes = plt.subplots(nrows=2, ncols=1)
+
+plot_df = pd.read_csv('diagnostic_values.csv.stable')
+plot_df[["drift_p_val", "driftref"]].plot(ax=axes[0], yticks=[1.0, 0.05, 0.0], style=["-", "-."], color=['#1f77b4', 'red'])
+plot_df[["mean_image_quality", "iqref"]].plot(ax=axes[1], yticks=[1.0, plot_df["iqref"][0], 0.0], style=["-", "-."], color=['#1f77b4', 'red'])
+
+plt.show()
+
 
 # plt.subplot(3, 1, 1)
 # plt.title(dataset)
