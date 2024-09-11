@@ -114,19 +114,25 @@ def load_drd(ddetector_dts: DataLoader, dd_type:  str = "mmd", load_ref=False, s
 
     return feat_ext, ddetect
 
-def load_lstm_drift(num_epochs: int = 30, out_size: int = 2):
+def load_lstm_drift(num_epochs: int = 30, out_size: int = 2, seed: int = 42):
 
     model_type = "lstm"
     model = LSTM_drift(emb_size=128, 
-                       hid_size=30, 
+                       hid_size=50, 
                        num_layers=2,
-                       class_out_size=out_size).to(device)
+                       class_out_size=out_size
+                       ).to(device)
     
-    if not os.path.exists("drd_{}.pth".format(model_type)):
+    if not os.path.exists("ref_lstm_seed_{}.pth".format(seed)):
 
-        kadid_paths = glob("kadid10k/images/I*")
-        train_d =  kadid10k(kadid_paths)
-    
+        kadid_paths = glob("kadid10k/images/I*_*")
+        is_good_im = (lambda x: int(x.split('_')[2].replace(".png","")[-1])==1)
+        is_bad_im = (lambda x: int(x.split('_')[2].replace(".png","")[-1])==5)
+
+        #kadid_paths = [pth for pth in kadid_paths if is_good_im(pth) or is_bad_im(pth)]
+        kadid_paths = [pth for pth in kadid_paths if is_good_im(pth) or is_bad_im(pth) ]
+        train_d = kadid10k(kadid_paths)
+
         criterion = nn.MSELoss()
         optimizer = optim.Adam(model.parameters(), lr=0.001)
         for _ in tqdm(range(num_epochs), desc="LSTM Epoch", position=0):
@@ -147,12 +153,12 @@ def load_lstm_drift(num_epochs: int = 30, out_size: int = 2):
                 running_loss += loss.item()
             logger.info(f"Loss: {running_loss/len(train_dts):.4f}")
 
-        torch.save(model.state_dict(), "drd_{}.pth".format(model_type))
+        torch.save(model.state_dict(),"ref_lstm_seed_{}.pth".format(seed))
 
     else:
         logger.info("load from dir")
         model.load_state_dict(
-            torch.load("drd_{}.pth".format(model_type))
+            torch.load("ref_lstm_seed_{}.pth".format(seed))
             )
         model = model.to(device)
 
@@ -226,7 +232,7 @@ if __name__ == "__main__":
     model_drd, ddetect = load_drd(ddetector_dts=rdet, load_ref=lf, seed=args.seed)
      
     # LOAD ARNIQA+ KADID10K LSTM
-    model_lstm = load_lstm_drift()
+    model_lstm = load_lstm_drift(seed=args.seed)
 
     all_drift_p_values = []
     mean_iqscore_values = []
@@ -372,7 +378,7 @@ data = [
 
 with open('diagnostic_values.csv', 'w', newline='') as csvfile:
     writer = csv.writer(csvfile, delimiter=',', quoting=csv.QUOTE_MINIMAL)
-    writer.writerow(["drift_p_val", "mean_image_quality", "lstm_drift detect", "iqref", "driftref", "lstmref", "window_tape"])
+    writer.writerow(["drift_p_val", "mean_image_quality", "lstm_drift_detect", "iqref", "driftref", "lstmref", "window_tape"])
     for dr,iq,ls in zip(all_drift_p_values, mean_iqscore_values, all_lstm_mean_values):
         writer.writerow([dr, iq, ls, ref_mean, 0.05, 0.5, [win_start, win_start+win_count]])
     

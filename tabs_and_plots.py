@@ -29,7 +29,7 @@ headers = ['precision_mean','precision_stdv','recall_mean','recall_stdv','f1_mea
 df = df[headers]
 print(tabulate(df,headers=headers, tablefmt="latex_raw"))
 
-fig, axes = plt.subplots(nrows=2, ncols=1)
+fig, axes = plt.subplots(nrows=3, ncols=1)
 
 plot_df = pd.read_csv('diagnostic_values.csv.stable')
 
@@ -39,11 +39,22 @@ plot_df[["drift_p_val", "driftref"]].plot(ax=axes[0], yticks=[1.0, 0.05, 0.0], s
 axes[0].axvline(x=int(tape[0]), ymin=0, ymax=1, color="gray", linestyle="-.")
 axes[0].axvline(x=int(tape[1])-1, ymin=0, ymax=1, color="gray", linestyle="-.")
 axes[0].fill_betweenx([0,1], int(tape[0]), int(tape[1])-1, color="gray", alpha=0.2)
+axes[0].fill_betweenx([0.0, 0.05], 0, len(plot_df)-1, color="red", alpha=0.2 )
+
 plot_df[["mean_image_quality", "iqref"]].plot(ax=axes[1], yticks=[1.0, plot_df["iqref"][0], 0.0], style=["-", "-."], color=['#1f77b4', 'red'])
 axes[1].axvline(x=int(tape[0]), ymin=0, ymax=1, color="gray", linestyle="-.")
 axes[1].axvline(x=int(tape[1])-1, ymin=0, ymax=1, color="gray", linestyle="-.")
 axes[1].fill_betweenx([0,1], int(tape[0]), int(tape[1])-1, color="gray", alpha=0.2)
-plt.show()
+axes[1].fill_betweenx([0.0, plot_df["iqref"][0]], 0, len(plot_df)-1, color="red", alpha=0.2 )
+
+
+plot_df[["lstm_drift_detect", "lstmref"]].plot(ax=axes[2], yticks=[1.0, 0.5, 0.0], style=["-", "-."], color=['#1f77b4', 'red'])
+axes[2].axvline(x=int(tape[0]), ymin=0, ymax=1, color="gray", linestyle="-.")
+axes[2].axvline(x=int(tape[1])-1, ymin=0, ymax=1, color="gray", linestyle="-.")
+axes[2].fill_betweenx([0,1], int(tape[0]), int(tape[1])-1, color="gray", alpha=0.2)
+axes[2].fill_betweenx([0.5, 1.0], 0, len(plot_df)-1, color="red", alpha=0.2 )
+
+plt.savefig("zurich_blackout_44.jpg")
 
 
 # plt.subplot(3, 1, 1)

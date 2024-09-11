@@ -265,7 +265,6 @@ class LSTM_drift(nn.Module):
         self.linear = nn.Linear(hid_size, class_out_size)
 
     def forward(self, x):
-        x = T.Resize((128,128))(x)
         _, x = self.encoder(x)
         x, _ = self.lstm(x)
         x = self.linear(x)

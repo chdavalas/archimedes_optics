@@ -63,23 +63,18 @@ def create_ref_model(dataset_name_split, distortions, dsp, num_epochs=50, dim=10
     criterion = nn.CrossEntropyLoss()
     optimizer = optim.Adam(model.parameters(), lr=0.001)
     
-    val_dts = init_train_dataloaders(dataset_name_split=[dataset_name_split[0],0,100], 
-                                            dstr=distortions, 
-                                            dist_sparsity=dsp, 
-                                            shuffle=True, distort=True, window_size=75)
+    rem = int(len(os.listdir(dataset_name_split[0]))*0.75)
 
     if not os.path.exists("ref_model_seed_{}.pth".format(seed)):
         for i in enumerate(tqdm(range(num_epochs), desc="Epoch", position=0)):
             model.train()
             running_loss = 0.0
-            running_val_loss = 0.0
-            rem = int((len(os.listdir(dataset_name_split[0]))-100)*0.75)
             train_dts = init_train_dataloaders(dataset_name_split=[dataset_name_split[0],100,0], 
                                             dstr=distortions, 
                                             dist_sparsity=0.0, 
                                             shuffle=True, distort=True, window_size=rem)
-
-            for images, labels in tqdm(train_dts, desc="train batch", position=1, leave=False):
+            
+            for images, labels in tqdm(train_dts, desc="test batch", position=2, leave=False):
                 optimizer.zero_grad()
                 outputs = model(images.to(device))
                 loss = criterion(outputs, labels.to(device).long())
@@ -87,16 +82,7 @@ def create_ref_model(dataset_name_split, distortions, dsp, num_epochs=50, dim=10
                 optimizer.step()
                 running_loss += loss.item()
 
-            for images, labels in tqdm(val_dts, desc="test batch", position=2, leave=False):
-                optimizer.zero_grad()
-                outputs = model(images.to(device))
-                loss = criterion(outputs, labels.to(device).long())
-                loss.backward()
-                optimizer.step()
-                running_val_loss += loss.item()
-
             logger.info(f"Train Loss: {running_loss/len(train_dts):.4f}")
-            logger.info(f"Val Loss: {running_val_loss/len(val_dts):.4f}")
 
             torch.save(model.state_dict(), "ref_model_seed_{}.pth".format(seed))
     else:

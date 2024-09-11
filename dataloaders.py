@@ -105,7 +105,7 @@ class kadid10k(Dataset):
         if len(im_path.replace(".png", "").split("/")[-1])==3:
             label = 1
         else:
-            quality = int(im_path.split('_')[0][-1])
+            quality = int(im_path.split('_')[2].replace(".png","")[-1])
             label = quality
 
         big_image = Image.open(im_path)
