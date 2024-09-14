@@ -73,9 +73,9 @@ def load_arniqa_model(ddetector_dts: DataLoader, regr_dt: str = "kadid10k"):
     for i, (bimage, _) in enumerate(tqdm(ddetector_dts, desc="Calc ref image quality"),1):
         with torch.no_grad(), torch.cuda.amp.autocast():
             score = model(bimage.to(device), return_embedding=False, scale_score=True)
-            ref_mean = score.min().item() if i==1 else min(ref_mean, score.min().item())
+            ref_iq = score.min().item() if i==1 else min(ref_iq, score.min().item())
 
-    return model.eval().to(device), ref_mean
+    return model.eval().to(device), ref_iq
 
 def return_feat_ext_output(feat_ext, bim, load_ref):
     if not load_ref:
@@ -85,6 +85,13 @@ def return_feat_ext_output(feat_ext, bim, load_ref):
     out_ = inp.argmax(dim=1).unsqueeze(1).float()
     logger.info(out_.permute(1,0))
     return out_
+
+def return_class_mean(feat_ext, bim):
+    inp = feat_ext(bim.to(device))
+    inp = inp.argmax(dim=1)
+    inp = torch.where(inp>0,1.,0.)
+    inp_sum = inp.sum()
+    return inp_sum/inp.shape[0]
 
 def load_drd(ddetector_dts: DataLoader, dd_type:  str = "mmd", load_ref=False, seed=42):
 
@@ -225,18 +232,22 @@ if __name__ == "__main__":
     #     dataset_name_split=ref_dataset, batch_size=global_batch_size, shuffle=True, distort=False, window_size=0, dstr=distortion)
 
     # LOAD ARNIQA
-    model_arniqa, ref_mean = load_arniqa_model(rdet)
+    model_arniqa, ref_iq = load_arniqa_model(rdet)
 
-    # LOAD ARNIQA+DRIFT DETECTOR
+    # LOAD DRIFT DETECTOR
     lf=True
     model_drd, ddetect = load_drd(ddetector_dts=rdet, load_ref=lf, seed=args.seed)
      
-    # LOAD ARNIQA+ KADID10K LSTM
+    # LOAD ARNIQA + KADID10K LSTM
     model_lstm = load_lstm_drift(seed=args.seed)
 
+    all_cl_mean_values = []
     all_drift_p_values = []
     mean_iqscore_values = []
     all_lstm_mean_values = []
+
+    cl_mean_pred = []
+    cl_mean_tar = []
 
     drift_pred = []
     drift_tar = []
@@ -269,20 +280,23 @@ if __name__ == "__main__":
             arniqa_outputs = compute_quality_score(
                 model_arniqa, bimages.to(device),
                 )
-                
+            
+            cl_mean = return_class_mean(model_drd, bimages).item()
             dd_in = return_feat_ext_output(model_drd, bimages, lf)
             pv = ddetect.forward(dd_in)
  
             meaniq = arniqa_outputs.mean().item()
             lstm_mean = torch.argmax(lstm_outputs, dim=1).float().mean()
 
+            all_cl_mean_values.append(cl_mean)
             all_drift_p_values.append(pv)
             mean_iqscore_values.append(meaniq)
             all_lstm_mean_values.append(lstm_mean.item())
 
             logging.info("---------")
+            logging.info("class_mean:{}".format(cl_mean))
             logging.info("drift p-val:{}".format(pv))
-            logging.info("mean_iq:{}, ref:{}".format(meaniq, ref_mean))
+            logging.info("mean_iq:{}, ref:{}".format(meaniq, ref_iq))
             logging.info("lstm_mean:{}".format(lstm_mean.item()))
             logging.info("Target ISCOR:{}".format(torch.where(labels>0, 1, 0).sum() > labels.shape[0]//2))
             logging.info("---------")
@@ -295,6 +309,11 @@ if __name__ == "__main__":
 
             # ideal_labels = torch.tensor([0]*bimages.shape[0])
 
+            if cl_mean>0.5:
+                cl_mean_pred.append(1)
+            else:
+                cl_mean_pred.append(0)
+
             # CALCULATE PRED STATS FOR LSTM
             if lstm_mean.item()>0.5:
                 lstm_drift_pred.append(1)
@@ -302,21 +321,28 @@ if __name__ == "__main__":
                 lstm_drift_pred.append(0)
 
             # CALCULATE PRED STATS FOR IQA
-            if meaniq<=ref_mean:
+            if meaniq<=ref_iq:
                 poor_quality_pred.append(1)
             else:
                 poor_quality_pred.append(0)
 
             # CALCULATE TARGET
             if torch.where(labels>0, 1, 0).sum() > labels.shape[0]//2:
+                cl_mean_tar.append(1)
                 poor_quality_tar.append(1)
                 lstm_drift_tar.append(1)
                 drift_tar.append(1)
             else:
+                cl_mean_tar.append(0)
                 poor_quality_tar.append(0)
                 lstm_drift_tar.append(0)
                 drift_tar.append(0)
 
+logging.info("--------------------------------------------------")
+logging.info("Class mean stats")
+logging.info("Precision:{}".format(precision_score(cl_mean_tar, cl_mean_pred)))
+logging.info("Recall:{}".format(recall_score(cl_mean_tar, cl_mean_pred)))
+logging.info("F1:{}".format(f1_score(cl_mean_tar, cl_mean_pred)))
 logging.info("--------------------------------------------------")
 logging.info("Drift stats")
 logging.info("Precision:{}".format(precision_score(drift_tar, drift_pred)))
@@ -337,6 +363,18 @@ logging.info("--------------------------------------------------")
 import csv
 
 data = [
+   {
+        'test_dataset':test_dataset, 
+        'ref_dataset':ref_dataset, 
+        'distortion_type': distortion[0],
+        'method': 'class-mean',
+        'seed': args.seed,
+        'window_tape':[win_start, win_start+win_count],
+        'window': window_size*(1.0-sparsity),
+        'precision':precision_score(cl_mean_tar, cl_mean_pred), 
+        'recall': recall_score(cl_mean_tar, cl_mean_pred), 
+        'f1':f1_score(cl_mean_tar, cl_mean_pred)
+    },
     {
         'test_dataset':test_dataset, 
         'ref_dataset':ref_dataset, 
@@ -378,9 +416,9 @@ data = [
 
 with open('diagnostic_values.csv', 'w', newline='') as csvfile:
     writer = csv.writer(csvfile, delimiter=',', quoting=csv.QUOTE_MINIMAL)
-    writer.writerow(["drift_p_val", "mean_image_quality", "lstm_drift_detect", "iqref", "driftref", "lstmref", "window_tape"])
-    for dr,iq,ls in zip(all_drift_p_values, mean_iqscore_values, all_lstm_mean_values):
-        writer.writerow([dr, iq, ls, ref_mean, 0.05, 0.5, [win_start, win_start+win_count]])
+    writer.writerow(["class_mean","drift_p_val", "mean_image_quality", "lstm_drift_detect",  "classmeanref",   "driftref", "iqref", "lstmref", "window_tape"])
+    for cm, dr,iq,ls in zip(all_cl_mean_values, all_drift_p_values, mean_iqscore_values, all_lstm_mean_values):
+        writer.writerow([cm ,dr, iq, ls, 0.5, 0.05, ref_iq,  0.5, [win_start, win_start+win_count]])
     
 if os.path.exists('stats.csv'):
     with open('stats.csv', 'a', newline='') as csvfile:
