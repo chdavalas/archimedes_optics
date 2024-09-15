@@ -28,7 +28,7 @@ df = pd.concat([df_mean, df_stdv], axis=1)
 headers = ['precision-mean','precision-stdv','recall-mean','recall-stdv','f1-mean','f1-stdv']
 
 def combine_columns(row, str1, str2):
-    return str(row[str1]) + " +- " + str(row[str2])
+    return str(row[str1]) + " \\textpm " + str(row[str2])
 
 # Apply the custom function to create a new column 'Combined'
 df['precision'] = df.apply(lambda c : combine_columns(c, 'precision-mean','precision-stdv'), axis=1)
@@ -54,7 +54,7 @@ axes[0].axvline(x=int(tape[0]), ymin=0, ymax=1, color="gray", linestyle="-.")
 axes[0].axvline(x=int(tape[1])-1, ymin=0, ymax=1, color="gray", linestyle="-.")
 axes[0].fill_betweenx([0,1], int(tape[0]), int(tape[1])-1, color="gray", alpha=0.2)
 axes[0].fill_betweenx([0.0, 0.05], 0, len(plot_df)-1, color="red", alpha=0.2 )
-axes[0].set_ylabel("mmd-drift")
+axes[0].set_ylabel("mmd drift")
 
 plot_df = plot_df.rename(columns={'mean_image_quality':'mean image quality', 'iqref':'lower warning limit'})
 plot_df[["mean image quality", "iq lower warning limit"]].plot(ax=axes[1], yticks=[1.0, plot_df['iq lower warning limit'][0], 0.0], style=["-", "-."], color=['#1f77b4', 'red'])
@@ -62,7 +62,7 @@ axes[1].axvline(x=int(tape[0]), ymin=0, ymax=1, color="gray", linestyle="-.")
 axes[1].axvline(x=int(tape[1])-1, ymin=0, ymax=1, color="gray", linestyle="-.")
 axes[1].fill_betweenx([0,1], int(tape[0]), int(tape[1])-1, color="gray", alpha=0.2)
 axes[1].fill_betweenx([0.0, plot_df['iq lower warning limit'][0]], 0, len(plot_df)-1, color="red", alpha=0.2 )
-axes[1].set_ylabel("arniqa-mean")
+axes[1].set_ylabel("arniqa mean")
 
 
 plot_df[["lstm drift detection", "lstm upper warning limit"]].plot(ax=axes[2], yticks=[1.0, 0.5, 0.0], style=["-", "-."], color=['#1f77b4', 'red'])
@@ -70,7 +70,7 @@ axes[2].axvline(x=int(tape[0]), ymin=0, ymax=1, color="gray", linestyle="-.")
 axes[2].axvline(x=int(tape[1])-1, ymin=0, ymax=1, color="gray", linestyle="-.")
 axes[2].fill_betweenx([0,1], int(tape[0]), int(tape[1])-1, color="gray", alpha=0.2)
 axes[2].fill_betweenx([0.5, 1.0], 0, len(plot_df)-1, color="red", alpha=0.2 )
-axes[2].set_ylabel("lstm-drift")
+axes[2].set_ylabel("lstm drift")
 
 
 plot_df[["classification mean", "class mean upper warning limit"]].plot(ax=axes[3], yticks=[1.0, 0.5, 0.0], style=["-", "-."], color=['#1f77b4', 'red'])
@@ -78,7 +78,8 @@ axes[3].axvline(x=int(tape[0]), ymin=0, ymax=1, color="gray", linestyle="-.")
 axes[3].axvline(x=int(tape[1])-1, ymin=0, ymax=1, color="gray", linestyle="-.")
 axes[3].fill_betweenx([0,1], int(tape[0]), int(tape[1])-1, color="gray", alpha=0.2)
 axes[3].fill_betweenx([0.5, 1.0], 0, len(plot_df)-1, color="red", alpha=0.2 )
-axes[3].set_ylabel("class-mean")
+axes[3].set_ylabel("class mean")
+
 axes[3].set_xlabel("# of 24-frame instances")
 plt.savefig("zurich_blackout_44.jpg")
 
