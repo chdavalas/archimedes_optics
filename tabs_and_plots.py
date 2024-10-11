@@ -40,9 +40,17 @@ df['f1'] = df.apply(lambda c : combine_columns(c, 'f1-mean','f1-stdv'), axis=1)
 with pd.ExcelWriter("excel_drift_results.xlsx") as writer:
     df[["precision", "recall", "f1"]].round(3).to_excel(writer)
 
+# A VERY POOR SHORTCUT FOR SPLITTING TABLES
+for i in range(0,3):
+    print()
+    print("\begin{table}[h]")
+    print("\begin{tabular}{|l|l|l|l|l|l|}")
+    print(df[12*i:12*(i+1)][["precision", "recall", "f1"]].sort_index(level="method", ).round(3).to_latex())
+    print("\caption{Caption}")
+    print("\label{tab:factory}")
+    print("\end{table}")
+    print()
 
-for i in range(0,4):
-    print(df[12*i:12*(i+1)][["precision", "recall", "f1"]].round(3).to_latex())
 
 fig, axes = plt.subplots(nrows=4, ncols=1,figsize=(10, 8))
 
