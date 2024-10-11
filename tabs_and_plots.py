@@ -2,8 +2,8 @@ import pandas as pd
 import matplotlib.pyplot as plt
 from tabulate import tabulate
 
-stats_df = pd.read_csv('stats.csv')
-# stats_df = pd.read_csv('stats.csv.stable')
+#stats_df = pd.read_csv('stats.csv')
+stats_df = pd.read_csv('stats.csv.stable')
 
 stats_df["test_dataset"] = stats_df["test_dataset"].astype('string')
 stats_df["test_dataset"] = stats_df["test_dataset"].str.strip("[]")
@@ -40,12 +40,14 @@ df['f1'] = df.apply(lambda c : combine_columns(c, 'f1-mean','f1-stdv'), axis=1)
 with pd.ExcelWriter("excel_drift_results.xlsx") as writer:
     df[["precision", "recall", "f1"]].round(3).to_excel(writer)
 
-print(df[["precision", "recall", "f1"]].round(3).to_latex())
+
+for i in range(0,4):
+    print(df[12*i:12*(i+1)][["precision", "recall", "f1"]].round(3).to_latex())
 
 fig, axes = plt.subplots(nrows=4, ncols=1,figsize=(10, 8))
 
-plot_df = pd.read_csv('diagnostic_values.csv')
-# plot_df = pd.read_csv('diagnostic_values.csv.stable')
+# plot_df = pd.read_csv('diagnostic_values.csv')
+plot_df = pd.read_csv('diagnostic_values.csv.stable')
 
 tape = plot_df["window_tape"][0].strip("[]").split(", ")
 
