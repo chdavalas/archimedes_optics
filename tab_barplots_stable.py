@@ -3,6 +3,7 @@ import numpy as np
 
 issues = ['Blackout', 'Lens Blur', 'Motion Blur']
 methods = ['Class-Mean', 'Arniqa-Mean', 'LSTM-Drift', 'MMD-Drift']
+colors = ['salmon', 'aquamarine', 'lightblue']
 
 precision = {
     'Blackout': [0.93, 1.0, 0.893, 0.85],
@@ -40,14 +41,38 @@ std_dev_f1 = {
 x = np.arange(len(methods))  # the label locations
 width = 0.2  # the width of the bars
 
-colors = ['salmon', 'purple', 'lightblue']
+precision_uplim = { i:[0., 0., 0., 0.] for i in ['Blackout', 'Lens Blur', 'Motion Blur']}
+for dist in ['Blackout', 'Lens Blur', 'Motion Blur']:
+    for i in range(4):
+        if precision[dist][i]+std_dev_precision[dist][i]>1:
+            precision_uplim[dist][i] = precision[dist][i]+std_dev_precision[dist][i]-1
+        else:
+            precision_uplim[dist][i] = std_dev_precision[dist][i]
+
+recall_uplim = { i:[0., 0., 0., 0.] for i in ['Blackout', 'Lens Blur', 'Motion Blur']}
+for dist in ['Blackout', 'Lens Blur', 'Motion Blur']:
+    for i in range(4):
+        if recall[dist][i]+std_dev_recall[dist][i]>1:
+            recall_uplim[dist][i] = recall[dist][i]+std_dev_recall[dist][i]-1
+        else:
+            recall_uplim[dist][i] = std_dev_recall[dist][i]
+
+f1_uplim = { i:[0., 0., 0., 0.] for i in ['Blackout', 'Lens Blur', 'Motion Blur']}
+for dist in ['Blackout', 'Lens Blur', 'Motion Blur']:
+    for i in range(4):
+        if f1_score[dist][i]+std_dev_f1[dist][i]>1:
+            f1_uplim[dist][i] = f1_score[dist][i]+std_dev_f1[dist][i]-1
+        else:
+            f1_uplim[dist][i] = std_dev_f1[dist][i]
+
+
 # Plot with standard deviations
 fig, ax = plt.subplots(3, 1, figsize=(12, 12))
 
 for i, issue in enumerate(issues):
-    rects1 = ax[i].bar(x - width, precision[issue], width, yerr=std_dev_precision[issue], capsize=5, label='Precision', color=colors[0])
-    rects2 = ax[i].bar(x, recall[issue], width, yerr=std_dev_recall[issue], capsize=5, label='Recall', color=colors[1])
-    rects3 = ax[i].bar(x + width, f1_score[issue], width, yerr=std_dev_f1[issue], capsize=5, label='F1 Score', color=colors[2])
+    rects1 = ax[i].bar(x - width, precision[issue], width, yerr=(std_dev_precision[issue],precision_uplim[issue]), capsize=5, label='Precision', color=colors[0])
+    rects2 = ax[i].bar(x, recall[issue], width, yerr=(std_dev_recall[issue], recall_uplim[issue]), capsize=5, label='Recall', color=colors[1])
+    rects3 = ax[i].bar(x + width, f1_score[issue], width, yerr=(std_dev_f1[issue],f1_uplim[issue]), capsize=5, label='F1 Score', color=colors[2])
     
     ax[i].set_ylabel('Scores')
     ax[i].set_title(issue)
@@ -95,7 +120,6 @@ std_dev_f1 = {
 x = np.arange(len(methods))  # the label locations
 width = 0.2  # the width of the bars
 
-colors = ['salmon', 'purple', 'lightblue']
 # Plot with standard deviations
 fig, ax = plt.subplots(3, 1, figsize=(12, 12))
 
@@ -149,7 +173,7 @@ std_dev_f1 = {
 x = np.arange(len(methods))  # the label locations
 width = 0.2  # the width of the bars
 
-colors = ['salmon', 'purple', 'lightblue']
+
 # Plot with standard deviations
 fig, ax = plt.subplots(3, 1, figsize=(12, 12))
 
