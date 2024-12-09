@@ -3,11 +3,8 @@ import torch
 from torch.utils.data import Dataset
 import numpy as np
 from PIL import Image
-# import torchvision.transforms.v2 as T
-import torchvision.transforms as T
+import torchvision.transforms.v2 as T
 import distortions as dstr_all
-import sys
-import matplotlib.pyplot as plt
 # dstr = [
 #     'gaussian_blur', 'blackout', 'motion_blur', 'brighten', 'color_block', 'color_diffusion', 
 #     'color_saturation1', 'color_saturation2', 'color_shift', 

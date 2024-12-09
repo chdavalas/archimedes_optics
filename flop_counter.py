@@ -1,15 +1,11 @@
-from calflops import calculate_flops
+from calflops import calculate_flops, calculate_flops_hf
 from torchvision import models
 import argparse
 import os
 import torch
 from dataloaders import VideoFootage, kadid10k
 from torch.utils.data import DataLoader
-#import torchvision.transforms.v2 as T
-
-import torchvision.transforms as T
-
-
+import torchvision.transforms.v2 as T
 from drift_detector import drift_detector
 from tqdm import tqdm
 import torch.nn as nn
@@ -33,6 +29,8 @@ logging.basicConfig(
     level=logging.INFO)
 
 device = torch.device("cuda") if torch.cuda.is_available() else "cpu"
+
+# device =  "cpu"
 
 def init_dataloaders(dataset_name_split, batch_size=32, window_size=100, 
                      shuffle=False, drop_last=True, distort=False, 
@@ -117,17 +115,17 @@ def load_drd(ddetector_dts: DataLoader, dd_type:  str = "mmd", load_ref=False, s
     for param in feat_ext.parameters():
         param.requires_grad = False
 
-    x_ref = []
-    for bim, _ in tqdm(ddetector_dts, desc="Drift fit"):
-        inp = return_feat_ext_output(feat_ext, bim, load_ref)
-        x_ref.append(inp)
+    # x_ref = []
+    # for bim, _ in tqdm(ddetector_dts, desc="Drift fit"):
+    #     inp = return_feat_ext_output(feat_ext, bim, load_ref)
+    #     x_ref.append(inp)
 
-    x_ref = torch.cat(x_ref, dim=0)
-    ddetect.fit(x_ref)
+    # x_ref = torch.cat(x_ref, dim=0)
+    # ddetect.fit(x_ref)
 
     return feat_ext, ddetect
 
-def load_lstm_drift(num_epochs: int = 30, out_size: int = 2, seed: int = 42):
+def load_lstm_drift(num_epochs: int = 30, out_size: int = 2, seed: int = 44):
 
     model_type = "lstm"
     model = LSTM_drift(emb_size=128, 
@@ -137,7 +135,6 @@ def load_lstm_drift(num_epochs: int = 30, out_size: int = 2, seed: int = 42):
                        ).to(device)
     
     if not os.path.exists("ref_lstm_seed_{}.pth".format(seed)):
-
         kadid_paths = glob("kadid10k/images/I*_*")
         is_good_im = (lambda x: int(x.split('_')[2].replace(".png","")[-1])==1)
         is_bad_im = (lambda x: int(x.split('_')[2].replace(".png","")[-1])==5)
@@ -199,9 +196,9 @@ if __name__ == "__main__":
 
 
     parser = argparse.ArgumentParser(description='testing camera diagnostics')
-    parser.add_argument('--test-dataset', default="traffic_inspection", type=str, help=dataset_list)
-    parser.add_argument('--ref-dataset', default="traffic_inspection", type=str, help=dataset_list)
-    parser.add_argument('--seed', type=int, help='define numpy/pytorch seed for reproducible results', default=42)
+    parser.add_argument('--test-dataset', default="dud", type=str, help=dataset_list)
+    parser.add_argument('--ref-dataset', default="dud", type=str, help=dataset_list)
+    parser.add_argument('--seed', type=int, help='define numpy/pytorch seed for reproducible results', default=44)
     parser.add_argument('--batch-size', type=int, help='define batch size for training/referencing/testing', default=24)
     parser.add_argument('--window', type=int, help='corruption window, if >0 the window is the last half of the testing dataset', default=0)
     parser.add_argument('--window-sparsity', type=float, help='amount of distortion within an window in the form of percent [0.0, 1.0]', default=0.0)
@@ -239,10 +236,86 @@ if __name__ == "__main__":
     model_drd, ddetect = load_drd(ddetector_dts=rdet, load_ref=lf, seed=args.seed)
 
     # LOAD ARNIQA + KADID10K LSTM
-    model_lstm = load_lstm_drift(seed=2345)
+    model_lstm = load_lstm_drift(seed=args.seed)
+    full_arniqa_flops = 0
+    full_arniqa_macs = 0
+    full_arniqa_params = 0
 
     batch_size = 24
     input_shape = (batch_size, 3, 384, 384)
-    flops, macs, params = calculate_flops(model=model_arniqa, input_shape=input_shape,output_as_string=True, output_precision=4)
-    print("Arniqa FLOPs:%s   MACs:%s   Params:%s \n" %(flops, macs, params))
+    
+    flops, macs, params = calculate_flops(model=model_arniqa.encoder, input_shape=input_shape, output_as_string=True, output_precision=4, print_results=False)
+    print("ARNIQA large FLOPs:%s   MACs:%s   Params:%s \n" %(flops, macs, params))
+    full_arniqa_flops+=float(flops.replace(" GFLOPS", ""))
+    full_arniqa_macs+=float(macs.replace(" GMACs", ""))
+    full_arniqa_params+=float(params[:-1])
 
+    small_shape = (batch_size, 3, 128, 128)
+    flops, macs, params = calculate_flops(model=model_arniqa.encoder, input_shape=small_shape, output_as_string=True, output_precision=4, print_results=False)
+    print("ARNIQA small FLOPs:%s   MACs:%s   Params:%s \n" %(flops, macs, params))
+    full_arniqa_flops+=float(flops.replace(" GFLOPS", ""))
+    full_arniqa_macs+=float(macs.replace(" GMACs", ""))
+    full_arniqa_params+=float(params[:-1])
+
+    regressor_lookalike = nn.Linear(in_features=4096, out_features=1, bias=True).to(device)
+    regressor_shape = (batch_size, 4096)
+    flops, macs, params = calculate_flops(model=regressor_lookalike, input_shape=regressor_shape, output_as_string=True, output_precision=4, print_results=False, output_unit="G")
+    print("ARNIQA regr FLOPs:%s   MACs:%s   Params:%s \n" %(flops, macs, params))
+
+    full_arniqa_flops+=float(flops.replace(" GFLOPS", ""))
+    full_arniqa_macs+=float(macs.replace(" GMACs", ""))
+    full_arniqa_params+=float(params[:-1])
+    print("-----------------------------------------------------------")
+    print("ARNIQA TOTAL FLOPs:%s   MACs:%s   Params:%s \n" %(round(full_arniqa_flops,4), round(full_arniqa_macs,4), round(full_arniqa_params,4)))
+
+    input_shape = (batch_size, 3, 384, 384)
+    flops, macs, params = calculate_flops(model=model_drd, input_shape=input_shape, output_as_string=True, output_precision=4, print_results=False)
+    print("DRD FLOPs:%s   MACs:%s   Params:%s \n" %(flops, macs, params))
+    
+    input_shape = (batch_size, 3, 384, 384)
+    flops, macs, params = calculate_flops(model=model_lstm, input_shape=input_shape, output_as_string=True, output_precision=4, print_results=False)
+    print("LSTM FLOPs:%s   MACs:%s   Params:%s \n" %(flops, macs, params))
+    print("-----------------------------------------------------------")
+
+
+    import time
+    import statistics
+    device = "cpu"
+    bim = torch.randn(batch_size, 3, 384, 384).to(device)
+    model_arniqa = ARNIQA(regressor_dataset="kadid10k").to(device)
+    ##########################################################################################################
+    for _ in range(5):
+        _ = model_arniqa(bim)
+    num_iterations = 5
+    inference_times = []
+    for _ in range(num_iterations):
+        start_time = time.time()
+        output = model_arniqa(bim)
+        end_time = time.time()
+        inference_times.append(end_time - start_time)
+    average_inference_time = statistics.mean(inference_times)
+    print(f"Average inference time for ARNIQA full: {average_inference_time:.4f} seconds")
+    ##########################################################################################################
+    for _ in range(5):
+        _ = model_drd.to(device)(bim)
+    num_iterations = 5
+    inference_times = []
+    for _ in range(num_iterations):
+        start_time = time.time()
+        output = model_drd.to(device)(bim)
+        end_time = time.time()
+        inference_times.append(end_time - start_time)
+    average_inference_time = statistics.mean(inference_times)
+    print(f"Average inference time for Class mean / Drift detect: {average_inference_time:.4f} seconds")
+    ##########################################################################################################
+    for _ in range(5):
+        _ = model_lstm.to(device)(bim)
+    num_iterations = 5
+    inference_times = []
+    for _ in range(num_iterations):
+        start_time = time.time()
+        output = model_lstm.to(device)(bim)
+        end_time = time.time()
+        inference_times.append(end_time - start_time)
+    average_inference_time = statistics.mean(inference_times)
+    print(f"Average inference time for LSTM (big image): {average_inference_time:.4f} seconds")
