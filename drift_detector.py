@@ -3,7 +3,6 @@ import torch
 import torch.nn as nn
 from alibi_detect.cd import MMDDrift
 from numpy import concatenate
-import torchvision.transforms.v2 as T
 import logging
 
 logger = logging.getLogger(__name__)

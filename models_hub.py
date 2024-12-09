@@ -4,10 +4,10 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torchvision
 from torchvision.models import resnet18, resnet50
-from dotmap import DotMap
 from losses import nt_xent_loss
 from typing import Tuple
-import torchvision.transforms.v2 as T
+# import torchvision.transforms.v2 as T
+import torchvision.transforms as T
 
 dependencies = ["torch"]
 

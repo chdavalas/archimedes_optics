@@ -3,7 +3,8 @@ import torch
 from torch.utils.data import Dataset
 import numpy as np
 from PIL import Image
-import torchvision.transforms.v2 as T
+# import torchvision.transforms.v2 as T
+import torchvision.transforms as T
 import distortions as dstr_all
 import sys
 
