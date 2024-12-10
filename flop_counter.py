@@ -266,56 +266,59 @@ if __name__ == "__main__":
     full_arniqa_macs+=float(macs.replace(" GMACs", ""))
     full_arniqa_params+=float(params[:-1])
     print("-----------------------------------------------------------")
-    print("ARNIQA TOTAL FLOPs:%s   MACs:%s   Params:%s \n" %(round(full_arniqa_flops,4), round(full_arniqa_macs,4), round(full_arniqa_params,4)))
+    print("ARNIQA TOTAL FLOPs:%s   MACs:%s   Params:%s" %(round(full_arniqa_flops,3), round(full_arniqa_macs,3), round(full_arniqa_params,3)))
+    print("NVIDIA Jetson nano FP32 speed:%s" %(round(full_arniqa_flops,3)/235.8))
 
     input_shape = (batch_size, 3, 384, 384)
     flops, macs, params = calculate_flops(model=model_drd, input_shape=input_shape, output_as_string=True, output_precision=4, print_results=False)
     print("DRD FLOPs:%s   MACs:%s   Params:%s \n" %(flops, macs, params))
-    
+    print("NVIDIA Jetson nano FP32 speed:%s" %(round(flops,3)/235.8))
+
     input_shape = (batch_size, 3, 384, 384)
     flops, macs, params = calculate_flops(model=model_lstm, input_shape=input_shape, output_as_string=True, output_precision=4, print_results=False)
     print("LSTM FLOPs:%s   MACs:%s   Params:%s \n" %(flops, macs, params))
+    print("NVIDIA Jetson nano FP32 speed:%s" %(round(flops,3)/235.8))
     print("-----------------------------------------------------------")
 
 
-    import time
-    import statistics
-    device = "cpu"
-    bim = torch.randn(batch_size, 3, 384, 384).to(device)
-    model_arniqa = ARNIQA(regressor_dataset="kadid10k").to(device)
-    ##########################################################################################################
-    for _ in range(5):
-        _ = model_arniqa(bim)
-    num_iterations = 5
-    inference_times = []
-    for _ in range(num_iterations):
-        start_time = time.time()
-        output = model_arniqa(bim)
-        end_time = time.time()
-        inference_times.append(end_time - start_time)
-    average_inference_time = statistics.mean(inference_times)
-    print(f"Average inference time for ARNIQA full: {average_inference_time:.4f} seconds")
-    ##########################################################################################################
-    for _ in range(5):
-        _ = model_drd.to(device)(bim)
-    num_iterations = 5
-    inference_times = []
-    for _ in range(num_iterations):
-        start_time = time.time()
-        output = model_drd.to(device)(bim)
-        end_time = time.time()
-        inference_times.append(end_time - start_time)
-    average_inference_time = statistics.mean(inference_times)
-    print(f"Average inference time for Class mean / Drift detect: {average_inference_time:.4f} seconds")
-    ##########################################################################################################
-    for _ in range(5):
-        _ = model_lstm.to(device)(bim)
-    num_iterations = 5
-    inference_times = []
-    for _ in range(num_iterations):
-        start_time = time.time()
-        output = model_lstm.to(device)(bim)
-        end_time = time.time()
-        inference_times.append(end_time - start_time)
-    average_inference_time = statistics.mean(inference_times)
-    print(f"Average inference time for LSTM (big image): {average_inference_time:.4f} seconds")
+    # import time
+    # import statistics
+    # device = "cpu"
+    # bim = torch.randn(batch_size, 3, 384, 384).to(device)
+    # model_arniqa = ARNIQA(regressor_dataset="kadid10k").to(device)
+    # ##########################################################################################################
+    # for _ in range(5):
+    #     _ = model_arniqa(bim)
+    # num_iterations = 5
+    # inference_times = []
+    # for _ in range(num_iterations):
+    #     start_time = time.time()
+    #     output = model_arniqa(bim)
+    #     end_time = time.time()
+    #     inference_times.append(end_time - start_time)
+    # average_inference_time = statistics.mean(inference_times)
+    # print(f"Average inference time for ARNIQA full: {average_inference_time:.4f} seconds")
+    # ##########################################################################################################
+    # for _ in range(5):
+    #     _ = model_drd.to(device)(bim)
+    # num_iterations = 5
+    # inference_times = []
+    # for _ in range(num_iterations):
+    #     start_time = time.time()
+    #     output = model_drd.to(device)(bim)
+    #     end_time = time.time()
+    #     inference_times.append(end_time - start_time)
+    # average_inference_time = statistics.mean(inference_times)
+    # print(f"Average inference time for Class mean / Drift detect: {average_inference_time:.4f} seconds")
+    # ##########################################################################################################
+    # for _ in range(5):
+    #     _ = model_lstm.to(device)(bim)
+    # num_iterations = 5
+    # inference_times = []
+    # for _ in range(num_iterations):
+    #     start_time = time.time()
+    #     output = model_lstm.to(device)(bim)
+    #     end_time = time.time()
+    #     inference_times.append(end_time - start_time)
+    # average_inference_time = statistics.mean(inference_times)
+    # print(f"Average inference time for LSTM (big image): {average_inference_time:.4f} seconds")
