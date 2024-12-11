@@ -152,6 +152,7 @@ def load_lstm_drift(num_epochs: int = 30, out_size: int = 2, seed: int = 44):
 
             for bimages, labels in tqdm(train_dts,desc="#b",position=1,leave=False):
                 # Accepting quality 0,1 as good !!!
+
                 labels = torch.where(labels>1, 1, 0)
 
                 outputs = model(bimages.to(device))
@@ -267,17 +268,17 @@ if __name__ == "__main__":
     full_arniqa_params+=float(params[:-1])
     print("-----------------------------------------------------------")
     print("ARNIQA TOTAL FLOPs:%s   MACs:%s   Params:%s" %(round(full_arniqa_flops,3), round(full_arniqa_macs,3), round(full_arniqa_params,3)))
-    print("NVIDIA Jetson nano FP32 speed:%s" %(round(full_arniqa_flops,3)/235.8))
+    print("NVIDIA Jetson nano FP32 speed:%s\n" %(round(full_arniqa_flops,3)/235.8))
 
     input_shape = (batch_size, 3, 384, 384)
     flops, macs, params = calculate_flops(model=model_drd, input_shape=input_shape, output_as_string=True, output_precision=4, print_results=False)
-    print("DRD FLOPs:%s   MACs:%s   Params:%s \n" %(flops, macs, params))
-    print("NVIDIA Jetson nano FP32 speed:%s" %(round(flops,3)/235.8))
-
+    print("DRD FLOPs:%s   MACs:%s   Params:%s " %(flops, macs, params))
+    print("NVIDIA Jetson nano FP32 speed:%s\n" %(round(float(flops.replace(" GFLOPS", "")),3)/235.8))
+ 
     input_shape = (batch_size, 3, 384, 384)
     flops, macs, params = calculate_flops(model=model_lstm, input_shape=input_shape, output_as_string=True, output_precision=4, print_results=False)
-    print("LSTM FLOPs:%s   MACs:%s   Params:%s \n" %(flops, macs, params))
-    print("NVIDIA Jetson nano FP32 speed:%s" %(round(flops,3)/235.8))
+    print("LSTM FLOPs:%s   MACs:%s   Params:%s" %(flops, macs, params))
+    print("NVIDIA Jetson nano FP32 speed:%s\n" %(round(float(flops.replace(" GFLOPS", "")),3)/235.8))
     print("-----------------------------------------------------------")
 
 
