@@ -85,7 +85,7 @@ class VideoFootage(Dataset):
         image = preproc(image)
 
         plt.rcParams["savefig.bbox"] = 'tight'
-        plt.rcParams.update({'font.size': 17})
+        plt.rcParams.update({'font.size': 20})
 
         def disp(imgs):
             if not isinstance(imgs, list):
@@ -97,7 +97,7 @@ class VideoFootage(Dataset):
                 img = img.permute(1,2,0)
                 axs[0, i].imshow(np.asarray(img))
                 axs[0, i].set(xticklabels=[], yticklabels=[], xticks=[], yticks=[])
-                axs[0, i].set_xlabel(legnd[i], fontsize = 20)
+                axs[0, i].set_xlabel(legnd[i], fontsize = 30)
 
         disp_preproc =  T.Compose([T.CenterCrop(size=384), T.ToImage(), T.ToDtype(torch.float32, scale=True)])
         disp_image = disp_preproc(disp_image)
