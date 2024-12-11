@@ -1,6 +1,8 @@
+#SEEDS=(42 43 44)
 SEEDS=(44)
-DISTORTIONS=(lens_blur motion_blur blackout)
-DATASETS=(traffic_inspection factory_inspection zurich_inspection)
+DISTORTIONS=(motion_blur)
+#DATASETS=(traffic_inspection factory_inspection zurich_inspection)
+DATASETS=(zurich_inspection)
 for SEED in ${SEEDS[@]}
     do
     # Dont use splits for training 

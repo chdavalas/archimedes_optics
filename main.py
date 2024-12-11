@@ -414,7 +414,7 @@ data = [
 
 ]
 
-with open('diagnostic_values_'+test_dataset+'_'+args.seed+'.csv', 'w', newline='') as csvfile:
+with open('diagnostic_values_'+test_dataset[0]+'_'+str(args.seed)+"_"+distortion[0]+'.csv', 'w', newline='') as csvfile:
     writer = csv.writer(csvfile, delimiter=',', quoting=csv.QUOTE_MINIMAL)
     writer.writerow(["class_mean","drift_p_val", "mean_image_quality", "lstm_drift_detect",  "classmeanref",   "driftref", "iqref", "lstmref", "window_tape"])
     for cm, dr,iq,ls in zip(all_cl_mean_values, all_drift_p_values, mean_iqscore_values, all_lstm_mean_values):

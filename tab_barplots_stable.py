@@ -4,6 +4,7 @@ import numpy as np
 issues = ['Blackout', 'Lens Blur', 'Motion Blur']
 methods = ['Class-Mean', 'Arniqa-Mean', 'LSTM-Drift', 'MMD-Drift']
 colors = ['salmon', 'aquamarine', 'lightblue']
+plt.rcParams.update({'font.size': 20})
 
 precision = {
     'Blackout': [0.93, 1.0, 0.893, 0.85],
@@ -183,10 +184,10 @@ for i, issue in enumerate(issues):
     rects3 = ax[i].bar(x + width, f1_score[issue], width, yerr=std_dev_f1[issue], capsize=5, label='F1 Score', color=colors[2])
     
     ax[i].set_ylabel('Scores')
-    ax[i].set_title(issue)
+    ax[i].set_title(issue, fontsize=20)
     ax[i].set_xticks(x)
-    ax[i].set_xticklabels(methods)
-    ax[i].legend()
+    ax[i].set_xticklabels(methods, fontsize=20)
+    ax[i].legend(fontsize=20)
 
 fig.tight_layout()
 

@@ -5,6 +5,8 @@ import numpy as np
 from PIL import Image
 import torchvision.transforms.v2 as T
 import distortions as dstr_all
+import matplotlib.pyplot as plt
+
 # dstr = [
 #     'gaussian_blur', 'blackout', 'motion_blur', 'brighten', 'color_block', 'color_diffusion', 
 #     'color_saturation1', 'color_saturation2', 'color_shift', 
@@ -82,26 +84,27 @@ class VideoFootage(Dataset):
 
         image = preproc(image)
 
-        # plt.rcParams["savefig.bbox"] = 'tight'
+        plt.rcParams["savefig.bbox"] = 'tight'
+        plt.rcParams.update({'font.size': 17})
 
-        # def disp(imgs):
-        #     if not isinstance(imgs, list):
-        #         imgs = [imgs]
-        #     _, axs = plt.subplots(ncols=len(imgs), squeeze=False, figsize=(20,12))
-        #     legnd = ["original", "lens blur", "motion blur", "blackout"]
-        #     for i, img in enumerate(imgs):
-        #         img = img.detach()
-        #         img = img.permute(1,2,0)
-        #         axs[0, i].imshow(np.asarray(img))
-        #         axs[0, i].set(xticklabels=[], yticklabels=[], xticks=[], yticks=[])
-        #         axs[0, i].set_xlabel(legnd[i], fontsize = 20)
+        def disp(imgs):
+            if not isinstance(imgs, list):
+                imgs = [imgs]
+            _, axs = plt.subplots(ncols=len(imgs), squeeze=False, figsize=(20,12))
+            legnd = ["original", "lens blur", "motion blur", "blackout"]
+            for i, img in enumerate(imgs):
+                img = img.detach()
+                img = img.permute(1,2,0)
+                axs[0, i].imshow(np.asarray(img))
+                axs[0, i].set(xticklabels=[], yticklabels=[], xticks=[], yticks=[])
+                axs[0, i].set_xlabel(legnd[i], fontsize = 20)
 
-        # disp_preproc =  T.Compose([T.CenterCrop(size=384), T.ToImage(), T.ToDtype(torch.float32, scale=True)])
-        # disp_image = disp_preproc(disp_image)
-        # grid = [disp_image, dstr_all.lens_blur(disp_image), dstr_all.motion_blur(disp_image), dstr_all.darken(disp_image)]
-        # disp(grid)
-        # plt.savefig("samples.jpg")
-        # quit()
+        disp_preproc =  T.Compose([T.CenterCrop(size=384), T.ToImage(), T.ToDtype(torch.float32, scale=True)])
+        disp_image = disp_preproc(disp_image)
+        grid = [disp_image, dstr_all.lens_blur(disp_image), dstr_all.motion_blur(disp_image), dstr_all.darken(disp_image)]
+        disp(grid)
+        plt.savefig("samples.jpg")
+        quit()
 
         if self.distort and idx in self.tape:
             dist_idx = self.dist_map[idx]

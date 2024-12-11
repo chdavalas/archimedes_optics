@@ -3,6 +3,7 @@ kadid*
 *.zip
 *.pth
 *csv
+*jpg
 display*
 drone_factory_frames
 video_maker.py
