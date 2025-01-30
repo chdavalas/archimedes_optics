@@ -118,11 +118,12 @@ If you find this work useful in your research, please consider citing our paper:
 
 ```bibtex
 @article{politi2025real,
-  title={Real-Time Quality Monitoring and Anomaly Detection for Vision Sensors in Connected and Autonomous Vehicles},
-  author={Your Name and Co-authors},
-  journal={IEEE Access},
-  year={2025}
-}
+  author={Politi, Elena and Davalas, Charalampos and Chronis, Christos and Dimitrakopoulos, George and Michail, Dimitrios and Varlamis, Iraklis},
+  journal={IEEE Access}, 
+  title={Real-Time Quality Monitoring and Anomaly Detection for Vision Sensors in Connected and Autonomous Vehicles}, 
+  year={2025},
+  doi={10.1109/ACCESS.2025.3536524}}
+
 ```
 
 ## License
