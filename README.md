@@ -9,17 +9,17 @@ This repository contains the official implementation of the paper:
 
 ## Table of Contents
 - [Real-Time Quality Monitoring and Anomaly Detection for Vision Sensors in Connected and Autonomous Vehicles](#real-time-quality-monitoring-and-anomaly-detection-for-vision-sensors-in-connected-and-autonomous-vehicles)
-	- [Table of Contents](#table-of-contents)
-	- [Overview](#overview)
-	- [Installation](#installation)
-	- [Usage](#usage)
-	- [Datasets](#datasets)
-	- [Visualizations](#visualizations)
-		- [Example GIFs:](#example-gifs)
-		- [Example Input Images:](#example-input-images)
-		- [Example Output:](#example-output)
-	- [Citation](#citation)
-	- [License](#license)
+  - [Table of Contents](#table-of-contents)
+  - [Overview](#overview)
+  - [Installation](#installation)
+  - [Usage](#usage)
+  - [Datasets](#datasets)
+  - [Visualizations](#visualizations)
+    - [Example GIFs:](#example-gifs)
+    - [Example Input Images:](#example-input-images)
+    - [Example Output:](#example-output)
+  - [Citation](#citation)
+  - [License](#license)
 
 ---
 
@@ -118,11 +118,12 @@ If you find this work useful in your research, please consider citing our paper:
 
 ```bibtex
 @article{politi2025real,
+  title={Real-Time Quality Monitoring and Anomaly Detection for Vision Sensors in Connected and Autonomous Vehicles},
   author={Politi, Elena and Davalas, Charalampos and Chronis, Christos and Dimitrakopoulos, George and Michail, Dimitrios and Varlamis, Iraklis},
-  journal={IEEE Access}, 
-  title={Real-Time Quality Monitoring and Anomaly Detection for Vision Sensors in Connected and Autonomous Vehicles}, 
+  journal={IEEE Access},
   year={2025},
-  doi={10.1109/ACCESS.2025.3536524}}
+  publisher={IEEE}
+}
 
 ```
 
