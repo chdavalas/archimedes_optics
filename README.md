@@ -53,7 +53,7 @@ Key highlights:
    git clone https://github.com/icsa-hua/archimedes-optics.git
    cd archimedes-optics
    ```
-2. Create a virtual environment (optional but recommended):
+2. Create a virtual environment, such as venv or conda (optional but recommended):
    ```bash
    python -m venv venv
    source venv/bin/activate
@@ -126,6 +126,5 @@ If you find this work useful in your research, please consider citing our paper:
 }
 
 ```
-
 ## License
 This project is licensed under the GPL-3.0 License. See the [LICENSE](LICENSE) file for details.
